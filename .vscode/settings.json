@@ -27,5 +27,9 @@
         "testpaths",
         "tmpdirname",
         "venv"
-    ]
+    ],
+    "githubPullRequests.ignoredPullRequestBranches": [
+        "main"
+    ],
+    "python.analysis.typeCheckingMode": "strict"
 }
