@@ -1,14 +1,15 @@
+---
 name: Repository Request
 about: Request creation or update of a repository
-title: "[REPO] "
+title: "[Repository Name]"
 labels: repo-request
 
-### Repository Information
+# Repository Information
 name: 
 visibility: [internal/private]
 description: 
 
-### Repository Configuration
+# Repository Configuration
 ```yaml
 repository:
   has_issues: true
@@ -23,14 +24,14 @@ repository:
   allow_update_branch: true
 ```
 
-### Security Settings
+# Security Settings
 ```yaml
 security:
   enableVulnerabilityAlerts: true
   enableAutomatedSecurityFixes: true
 ```
 
-### Branch Protection Rules
+# Branch Protection Rules
 ```yaml
 rulesets:
   - name: default
@@ -48,7 +49,7 @@ rulesets:
           required_review_thread_resolution: true
 ```
 
-### Additional Settings
+# Additional Settings
 ```yaml
 custom_properties:
   - name: team
