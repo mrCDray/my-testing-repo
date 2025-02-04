@@ -81,7 +81,7 @@ class RepoIssueHandler:
 
         return len(errors) == 0, errors
 
-    def handle_creation_issue(self, repo_name,  issue_number: int) -> None:
+    def handle_creation_issue(self, repo_name, issue_number: int) -> None:
         """Handle repository creation issue"""
         try:
             repo = self.org.get_repo(repo_name)
