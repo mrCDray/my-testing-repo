@@ -1,0 +1,61 @@
+---
+name: Repository Request
+about: Request creation or update of a repository
+title: "[REPO] "
+labels: repo-request
+assignees: ''
+---
+
+### Repository Information
+name: 
+visibility: [internal/private]
+description: 
+
+### Repository Configuration
+```yaml
+repository:
+  has_issues: true
+  has_projects: true
+  has_wiki: true
+  default_branch: main
+  allow_squash_merge: true
+  allow_merge_commit: true
+  allow_rebase_merge: true
+  allow_auto_merge: false
+  delete_branch_on_merge: true
+  allow_update_branch: true
+```
+
+### Security Settings
+```yaml
+security:
+  enableVulnerabilityAlerts: true
+  enableAutomatedSecurityFixes: true
+```
+
+### Branch Protection Rules
+```yaml
+rulesets:
+  - name: default
+    target: branch
+    enforcement: active
+    conditions:
+      ref_name:
+        include: ["~DEFAULT_BRANCH"]
+    rules:
+      - type: pull_request
+        parameters:
+          dismiss_stale_reviews_on_push: true
+          require_code_owner_review: true
+          required_approving_review_count: 2
+          required_review_thread_resolution: true
+```
+
+### Additional Settings
+```yaml
+custom_properties:
+  - name: team
+    value: ""
+  - name: cost-center
+    value: ""
+```
