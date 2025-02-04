@@ -17,29 +17,22 @@ def main():
     token = os.getenv("GITHUB_TOKEN")
     org_name = os.getenv("ORG_NAME")
     issue_number = os.getenv("ISSUE_NUMBER")
+    github_repository = os.getenv("GITHUB_REPOSITORY")
 
-    if not all([token, org_name, issue_number]):
+    if not all([token, org_name, issue_number, github_repository]):
         logger.error("Missing required environment variables")
         sys.exit(1)
 
     try:
         # Convert issue number to integer
         issue_number = int(issue_number)
-
+        repo_name = github_repository.split("/")[-1]
         # Initialize handler
-        handler = RepoIssueHandler(token, org_name)
+        handler = RepoIssueHandler(token, org_name, repo_name)
 
         # Get the issue to determine the type
         g = Github(token)
         org = g.get_organization(org_name)
-        github_repository = os.getenv("GITHUB_REPOSITORY")
-        if not github_repository:
-            logger.error("Missing required environment variable: GITHUB_REPOSITORY")
-            sys.exit(1)
-        repo_name = github_repository.split("/")[-1]
-        if not repo_name:
-            logger.error("Missing required environment variable: REPO_NAME")
-            sys.exit(1)
         repo = org.get_repo(repo_name)
         issue = repo.get_issue(number=issue_number)
 
