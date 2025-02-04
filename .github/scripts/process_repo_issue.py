@@ -5,7 +5,7 @@ import sys
 import logging
 from github import Github, GithubException
 
-from scripts.repo_issue_handler import RepoIssueHandler
+from repo_issue_handler import RepoIssueHandler
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
