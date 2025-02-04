@@ -1,10 +1,7 @@
----
 name: Repository Request
 about: Request creation or update of a repository
 title: "[REPO] "
 labels: repo-request
-assignees: ''
----
 
 ### Repository Information
 name: 
