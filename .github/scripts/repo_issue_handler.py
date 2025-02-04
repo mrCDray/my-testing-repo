@@ -1,8 +1,10 @@
-from github import Github
-import yaml
 import re
-import os
+import yaml
+import logging
 from typing import Dict, Any, Optional, List, Tuple
+from github import Github
+from github import Github, GithubException
+
 
 
 class RepoIssueHandler:
@@ -81,29 +83,51 @@ class RepoIssueHandler:
         return len(errors) == 0, errors
 
     def handle_creation_issue(self, issue_number: int) -> None:
-        """Handle repository creation issue"""
-        try:
-            issue = self.org.get_issue(issue_number)
-            config = self.parse_issue_body(issue.body)
+            """Handle repository creation issue"""
+            try:
+                issue = self.org.get_issue(issue_number)
+                self._comment_on_issue(issue, "Processing repository creation request...")
+                
+                # Parse and validate configuration
+                config = self.parse_issue_body(issue)
+                logging.info(f"Parsed configuration: {config}")
+                
+                # Validate configuration
+                is_valid, errors = self.validate_config(config)
+                if not is_valid:
+                    error_msg = "Configuration validation failed:\n" + "\n".join(errors)
+                    logging.error(error_msg)
+                    self._comment_on_issue(issue, error_msg)
+                    return
 
-            # Validate configuration
-            is_valid, errors = self.validate_config(config)
-            if not is_valid:
-                self._comment_on_issue(issue, "Configuration validation failed:\n" + "\n".join(errors))
-                return
+                # Create repository
+                logging.info(f"Creating repository with config: {config['repository']}")
+                repo = self._create_repository(config)
+                
+                if not repo:
+                    error_msg = "Failed to create repository"
+                    logging.error(error_msg)
+                    self._comment_on_issue(issue, error_msg)
+                    return
 
-            # Create repository
-            repo = self._create_repository(config)
+                # Apply configuration
+                logging.info("Applying repository configuration")
+                changes = self._apply_repository_config(repo, config)
+                
+                # Close issue with success message
+                success_msg = (
+                    f"Repository {repo.name} created successfully\n"
+                    f"Repository URL: {repo.html_url}\n"
+                    f"Changes applied: \n```yaml\n{yaml.dump(changes)}\n```"
+                )
+                self._comment_on_issue(issue, success_msg)
+                issue.edit(state="closed")
 
-            # Apply configuration
-            self._apply_repository_config(repo, config)
-
-            # Close issue with success message
-            self._comment_on_issue(issue, f"Repository {repo.name} created successfully")
-            issue.edit(state="closed")
-
-        except Exception as e:
-            self._comment_on_issue(issue, f"Error processing repository creation: {str(e)}")
+            except Exception as e:
+                error_msg = f"Error processing repository creation: {str(e)}"
+                logging.error(error_msg)
+                self._comment_on_issue(issue, error_msg)
+                raise
 
     def handle_update_issue(self, issue_number: int) -> None:
         """Handle repository update issue"""
@@ -133,12 +157,18 @@ class RepoIssueHandler:
     def _create_repository(self, config: Dict[str, Any]):
         """Create new repository with basic settings"""
         repo_config = config["repository"]
-        return self.org.create_repo(
-            name=repo_config["name"],
-            private=(repo_config["visibility"] == "private"),
-            internal=(repo_config["visibility"] == "internal"),
-            auto_init=True,
-        )
+        try:
+            logging.info(f"Creating repository: {repo_config['name']}")
+            return self.org.create_repo(
+                name=repo_config["name"],
+                description=repo_config.get("description", ""),
+                private=(repo_config["visibility"] == "private"),
+                internal=(repo_config["visibility"] == "internal"),
+                auto_init=True,
+            )
+        except GithubException as e:
+            logging.error(f"Failed to create repository: {str(e)}")
+            raise
 
     def _apply_repository_config(self, repo, config: Dict[str, Any]) -> Dict[str, Any]:
         """Apply configuration to repository and return changes made"""
