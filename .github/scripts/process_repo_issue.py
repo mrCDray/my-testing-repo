@@ -32,7 +32,12 @@ def main():
         # Get the issue to determine the type
         g = Github(token)
         org = g.get_organization(org_name)
-        issue = org.get_issue(issue_number)
+        repo_name = os.getenv("REPO_NAME")
+        if not repo_name:
+            logger.error("Missing required environment variable: REPO_NAME")
+            sys.exit(1)
+        repo = org.get_repo(repo_name)
+        issue = repo.get_issue(number=issue_number)
 
         logger.info(f"Processing issue #{issue_number}")
 
