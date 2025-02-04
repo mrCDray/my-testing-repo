@@ -50,10 +50,10 @@ def main():
 
         if "repo-creation" in labels:
             logger.info("Handling repository creation")
-            handler.handle_creation_issue(issue_number)
+            handler.handle_creation_issue(repo_name, issue_number)
         elif "repo-update" in labels:
             logger.info("Handling repository update")
-            handler.handle_update_issue(issue_number)
+            handler.handle_update_issue(repo_name, issue_number)
         else:
             logger.warning(f"Issue #{issue_number} does not have required labels")
             issue.create_comment("This issue needs either 'repo-creation' or 'repo-update' label to be processed.")

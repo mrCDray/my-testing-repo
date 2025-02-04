@@ -81,10 +81,11 @@ class RepoIssueHandler:
 
         return len(errors) == 0, errors
 
-    def handle_creation_issue(self, issue_number: int) -> None:
+    def handle_creation_issue(self, repo_name,  issue_number: int) -> None:
         """Handle repository creation issue"""
         try:
-            issue = self.org.get_issue(issue_number)
+            repo = self.org.get_repo(repo_name)
+            issue = self.repo.get_issue(issue_number)
             self._comment_on_issue(issue, "Processing repository creation request...")
 
             # Parse and validate configuration
@@ -128,10 +129,11 @@ class RepoIssueHandler:
             self._comment_on_issue(issue, error_msg)
             raise
 
-    def handle_update_issue(self, issue_number: int) -> None:
+    def handle_update_issue(self, repo_name, issue_number: int) -> None:
         """Handle repository update issue"""
         try:
-            issue = self.org.get_issue(issue_number)
+            repo = self.org.get_repo(repo_name)
+            issue = self.repo.get_issue(issue_number)
             config = self.parse_issue_body(issue.body)
 
             # Validate configuration
