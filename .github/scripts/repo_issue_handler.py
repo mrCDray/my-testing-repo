@@ -16,35 +16,54 @@ class RepoIssueHandler:
         with open("default_repository.yml", "r") as f:
             return yaml.safe_load(f)
 
-    def parse_issue_body(self, body: str) -> Dict[str, Any]:
-        """Parse issue body to extract configuration parameters"""
-        config = {}
-        sections = re.split(r"^### ", body, flags=re.MULTILINE)[1:]
-
-        for section in sections:
-            lines = section.strip().split("\n")
-            if not lines:
-                continue
-
-            section_name = lines[0].lower().replace(" ", "_")
-            section_content = "\n".join(lines[1:]).strip()
-
-            if section_content.startswith("```yaml"):
-                # Parse YAML content
-                yaml_content = section_content.replace("```yaml", "").replace("```", "").strip()
+    def parse_issue_body(self, issue) -> Dict[str, Any]:
+        """Parse issue body from the form-based template"""
+        config = {
+            'repository': {},
+            'security': {},
+            'rulesets': [],
+            'custom_properties': []
+        }
+        
+        # Get form data from issue body
+        form_data = issue.body
+        
+        # Parse basic repository information
+        config['repository']['name'] = self._get_form_value(form_data, 'repo-name')
+        config['repository']['visibility'] = self._get_form_value(form_data, 'visibility')
+        config['repository']['description'] = self._get_form_value(form_data, 'description')
+        
+        # Parse YAML configurations
+        yaml_sections = {
+            'repo-config': 'repository',
+            'security-settings': 'security',
+            'branch-protection': 'rulesets',
+            'custom-properties': 'custom_properties'
+        }
+        
+        for form_id, config_key in yaml_sections.items():
+            yaml_text = self._extract_yaml_from_form(form_data, form_id)
+            if yaml_text:
                 try:
-                    config[section_name] = yaml.safe_load(yaml_content)
+                    parsed_yaml = yaml.safe_load(yaml_text)
+                    if config_key in parsed_yaml:
+                        config[config_key].update(parsed_yaml[config_key])
                 except yaml.YAMLError as e:
-                    raise ValueError(f"Invalid YAML in {section_name}: {str(e)}")
-            else:
-                # Parse key-value pairs
-                config[section_name] = {}
-                for line in section_content.split("\n"):
-                    if ":" in line:
-                        key, value = line.split(":", 1)
-                        config[section_name][key.strip()] = value.strip()
-
+                    raise ValueError(f"Invalid YAML in {form_id}: {str(e)}")
+        
         return config
+
+    def _get_form_value(self, form_data: str, field_id: str) -> str:
+        """Extract value from a form field"""
+        pattern = f'### {field_id}\n\n(.*?)(?=###|$)'
+        match = re.search(pattern, form_data, re.DOTALL)
+        return match.group(1).strip() if match else ''
+
+    def _extract_yaml_from_form(self, form_data: str, field_id: str) -> Optional[str]:
+        """Extract YAML content from a form field"""
+        yaml_pattern = f'### {field_id}.*?```yaml\n(.*?)```'
+        match = re.search(yaml_pattern, form_data, re.DOTALL)
+        return match.group(1) if match else None
 
     def validate_config(self, config: Dict[str, Any]) -> Tuple[bool, List[str]]:
         """Validate repository configuration against allowed values"""
