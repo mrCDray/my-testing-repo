@@ -32,7 +32,11 @@ def main():
         # Get the issue to determine the type
         g = Github(token)
         org = g.get_organization(org_name)
-        repo_name = os.getenv("REPO_NAME")
+        github_repository = os.getenv("GITHUB_REPOSITORY")
+        if not github_repository:
+            logger.error("Missing required environment variable: GITHUB_REPOSITORY")
+            sys.exit(1)
+        repo_name = github_repository.split('/')[-1]
         if not repo_name:
             logger.error("Missing required environment variable: REPO_NAME")
             sys.exit(1)
