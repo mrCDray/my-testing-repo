@@ -11,35 +11,35 @@ repository:
     enableAutomatedSecurityFixes: true
   # Can be internal (recommended) or private. With GitHub Enterprise Cloud
   visibility: internal
-  # Either `true` to enable issues for this repository, `false` to disable them.
+  # Either true to enable issues for this repository, false to disable them.
   has_issues: true
-  # Either `true` to enable projects for this repository, or `false` to disable them.
-  # If projects are disabled for the organization, passing `true` will cause an API error.
+  # Either true to enable projects for this repository, or false to disable them.
+  # If projects are disabled for the organization, passing true will cause an API error.
   has_projects: true
-  # Either `true` to enable the wiki for this repository, `false` to disable it.
+  # Either true to enable the wiki for this repository, false to disable it.
   has_wiki: true
   # The default branch for this repository.
   default_branch: main
-  # Either `true` to allow squash-merging pull requests, or `false` to prevent
+  # Either true to allow squash-merging pull requests, or false to prevent
   # squash-merging.
   allow_squash_merge: true
-  # Either `true` to allow merging pull requests with a merge commit, or `false`
+  # Either true to allow merging pull requests with a merge commit, or false
   # to prevent merging pull requests with merge commits.
   allow_merge_commit: true
-  # Either `true` to allow rebase-merging pull requests, or `false` to prevent
+  # Either true to allow rebase-merging pull requests, or false to prevent
   # rebase-merging.
   allow_rebase_merge: true
-  # Either `true` to allow auto-merge on pull requests,
-  # or `false` to disallow auto-merge.
-  Default: `false`
+  # Either true to allow auto-merge on pull requests,
+  # or false to disallow auto-merge.
+  Default: false
   allow_auto_merge: true
-  # Either `true` to allow automatically deleting head branches
-  # when pull requests are merged, or `false` to prevent automatic deletion.
-  # Default: `false`
+  # Either true to allow automatically deleting head branches
+  # when pull requests are merged, or false to prevent automatic deletion.
+  # Default: false
   delete_branch_on_merge: true
-  # Either `true` to  allow update branch on pull requests,
-  # or `false` to disallow update branch.
-  # Default: `false`
+  # Either true to  allow update branch on pull requests,
+  # or false to disallow update branch.
+  # Default: false
   allow_update_branch: true
   # Whether to archive this repository. false will unarchive a previously archived repository.
   archived: false
@@ -56,7 +56,7 @@ rulesets:
     # - branch
     # - tag
     target: branch
-    # The enforcement level of the ruleset. `evaluate` allows admins to test
+    # The enforcement level of the ruleset. evaluate allows admins to test
     # rules before enforcing them.
     # - disabled
     # - active
@@ -67,7 +67,7 @@ rulesets:
       ref_name:
         # Array of ref names or patterns to include. One of these
         # patterns must match for the condition to pass. Also accepts
-        # `~DEFAULT_BRANCH` to include the default branch or `~ALL` to
+        # ~DEFAULT_BRANCH to include the default branch or ~ALL to
         # include all branches.
         include: ["~DEFAULT_BRANCH"]
         # Array of ref names or patterns to exclude. The condition
