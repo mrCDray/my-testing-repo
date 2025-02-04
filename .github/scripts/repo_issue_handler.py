@@ -18,29 +18,24 @@ class RepoIssueHandler:
 
     def parse_issue_body(self, issue) -> Dict[str, Any]:
         """Parse issue body from the form-based template"""
-        config = {
-            'repository': {},
-            'security': {},
-            'rulesets': [],
-            'custom_properties': []
-        }
-        
+        config = {"repository": {}, "security": {}, "rulesets": [], "custom_properties": []}
+
         # Get form data from issue body
         form_data = issue.body
-        
+
         # Parse basic repository information
-        config['repository']['name'] = self._get_form_value(form_data, 'repo-name')
-        config['repository']['visibility'] = self._get_form_value(form_data, 'visibility')
-        config['repository']['description'] = self._get_form_value(form_data, 'description')
-        
+        config["repository"]["name"] = self._get_form_value(form_data, "repo-name")
+        config["repository"]["visibility"] = self._get_form_value(form_data, "visibility")
+        config["repository"]["description"] = self._get_form_value(form_data, "description")
+
         # Parse YAML configurations
         yaml_sections = {
-            'repo-config': 'repository',
-            'security-settings': 'security',
-            'branch-protection': 'rulesets',
-            'custom-properties': 'custom_properties'
+            "repo-config": "repository",
+            "security-settings": "security",
+            "branch-protection": "rulesets",
+            "custom-properties": "custom_properties",
         }
-        
+
         for form_id, config_key in yaml_sections.items():
             yaml_text = self._extract_yaml_from_form(form_data, form_id)
             if yaml_text:
@@ -50,18 +45,18 @@ class RepoIssueHandler:
                         config[config_key].update(parsed_yaml[config_key])
                 except yaml.YAMLError as e:
                     raise ValueError(f"Invalid YAML in {form_id}: {str(e)}")
-        
+
         return config
 
     def _get_form_value(self, form_data: str, field_id: str) -> str:
         """Extract value from a form field"""
-        pattern = f'### {field_id}\n\n(.*?)(?=###|$)'
+        pattern = f"### {field_id}\n\n(.*?)(?=###|$)"
         match = re.search(pattern, form_data, re.DOTALL)
-        return match.group(1).strip() if match else ''
+        return match.group(1).strip() if match else ""
 
     def _extract_yaml_from_form(self, form_data: str, field_id: str) -> Optional[str]:
         """Extract YAML content from a form field"""
-        yaml_pattern = f'### {field_id}.*?```yaml\n(.*?)```'
+        yaml_pattern = f"### {field_id}.*?```yaml\n(.*?)```"
         match = re.search(yaml_pattern, form_data, re.DOTALL)
         return match.group(1) if match else None
 
