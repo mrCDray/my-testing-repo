@@ -1,59 +1,117 @@
 ---
 name: Repository Request
-about: Request creation or update of a repository
-title: "[Repository Name]"
-labels: repo-request
+description: Request creation or update of a repository
+title: "[REPO] "
+labels: ["repo-request"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this repository request!
 
-# Repository Information
-name: 
-visibility: [internal/private]
-description: 
+  - type: input
+    id: repo-name
+    attributes:
+      label: Repository Name
+      description: Name for the repository
+      placeholder: my-new-repo
+    validations:
+      required: true
 
-# Repository Configuration
-```yaml
-repository:
-  has_issues: true
-  has_projects: true
-  has_wiki: true
-  default_branch: main
-  allow_squash_merge: true
-  allow_merge_commit: true
-  allow_rebase_merge: true
-  allow_auto_merge: false
-  delete_branch_on_merge: true
-  allow_update_branch: true
-```
+  - type: dropdown
+    id: visibility
+    attributes:
+      label: Repository Visibility
+      description: Select the visibility level for the repository
+      options:
+        - internal
+        - private
+    validations:
+      required: true
 
-# Security Settings
-```yaml
-security:
-  enableVulnerabilityAlerts: true
-  enableAutomatedSecurityFixes: true
-```
+  - type: textarea
+    id: description
+    attributes:
+      label: Repository Description
+      description: Brief description of the repository's purpose
+      placeholder: This repository is for...
+    validations:
+      required: true
 
-# Branch Protection Rules
-```yaml
-rulesets:
-  - name: default
-    target: branch
-    enforcement: active
-    conditions:
-      ref_name:
-        include: ["~DEFAULT_BRANCH"]
-    rules:
-      - type: pull_request
-        parameters:
-          dismiss_stale_reviews_on_push: true
-          require_code_owner_review: true
-          required_approving_review_count: 2
-          required_review_thread_resolution: true
-```
+  - type: textarea
+    id: repo-config
+    attributes:
+      label: Repository Configuration
+      description: Repository settings (modify only if needed)
+      value: |
+        ```yaml
+        repository:
+          has_issues: true
+          has_projects: true
+          has_wiki: true
+          default_branch: main
+          allow_squash_merge: true
+          allow_merge_commit: true
+          allow_rebase_merge: true
+          allow_auto_merge: false
+          delete_branch_on_merge: true
+          allow_update_branch: true
+        ```
 
-# Additional Settings
-```yaml
-custom_properties:
-  - name: team
-    value: ""
-  - name: cost-center
-    value: ""
-```
+  - type: textarea
+    id: security-settings
+    attributes:
+      label: Security Settings
+      description: Security-related configurations (modify only if needed)
+      value: |
+        ```yaml
+        security:
+          enableVulnerabilityAlerts: true
+          enableAutomatedSecurityFixes: true
+        ```
+
+  - type: textarea
+    id: branch-protection
+    attributes:
+      label: Branch Protection Rules
+      description: Branch protection configurations (modify only if needed)
+      value: |
+        ```yaml
+        rulesets:
+          - name: default
+            target: branch
+            enforcement: active
+            conditions:
+              ref_name:
+                include: ["~DEFAULT_BRANCH"]
+            rules:
+              - type: pull_request
+                parameters:
+                  dismiss_stale_reviews_on_push: true
+                  require_code_owner_review: true
+                  required_approving_review_count: 2
+                  required_review_thread_resolution: true
+        ```
+
+  - type: textarea
+    id: custom-properties
+    attributes:
+      label: Additional Settings
+      description: Custom properties for the repository
+      value: |
+        ```yaml
+        custom_properties:
+          - name: team
+            value: ""
+          - name: cost-center
+            value: ""
+        ```
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our repository policies
+      options:
+        - label: I have reviewed the repository settings and confirm they meet our organization's req
