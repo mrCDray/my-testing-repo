@@ -6,7 +6,7 @@ on:
 jobs:
   handle-repository-issue:
     runs-on: ubuntu-latest
-    if: contains(github.event.issue.labels.*.name, 'repo-creation') || contains(github.event.issue.labels.*.name, 'repo-update')
+    if: contains(github.event.issue.labels.*.name, 'repo-request')
     environment: cloud-platform
     
     steps:
@@ -35,4 +35,4 @@ jobs:
           ORG_NAME: ${{ github.repository_owner }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
-          python .github/scripts/process_repo_issue.py
+          python .github/scripts/repo_issue_handler.py
