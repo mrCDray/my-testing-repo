@@ -7,10 +7,12 @@ from github import Github, GithubException
 
 
 class RepoIssueHandler:
-    def __init__(self, token: str, org_name: str):
+    def __init__(self, token: str, org_name: str, repo_name: str):
         self.github = Github(token)
         self.org = self.github.get_organization(org_name)
         self.default_config = self._load_default_config()
+        self.repo = self.org.get_repo(repo_name)
+        self.logger = logging.getLogger(__name__)
 
     def _load_default_config(self) -> Dict[str, Any]:
         """Load default repository configuration"""
@@ -81,10 +83,9 @@ class RepoIssueHandler:
 
         return len(errors) == 0, errors
 
-    def handle_creation_issue(self, repo_name, issue_number: int) -> None:
+    def handle_creation_issue(self, issue_number: int) -> None:
         """Handle repository creation issue"""
         try:
-            repo = self.org.get_repo(repo_name)
             issue = self.repo.get_issue(issue_number)
             self._comment_on_issue(issue, "Processing repository creation request...")
 
@@ -129,10 +130,9 @@ class RepoIssueHandler:
             self._comment_on_issue(issue, error_msg)
             raise
 
-    def handle_update_issue(self, repo_name, issue_number: int) -> None:
+    def handle_update_issue(self, issue_number: int) -> None:
         """Handle repository update issue"""
         try:
-            repo = self.org.get_repo(repo_name)
             issue = self.repo.get_issue(issue_number)
             config = self.parse_issue_body(issue.body)
 
