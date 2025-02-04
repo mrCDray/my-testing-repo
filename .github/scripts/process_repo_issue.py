@@ -36,7 +36,7 @@ def main():
         if not github_repository:
             logger.error("Missing required environment variable: GITHUB_REPOSITORY")
             sys.exit(1)
-        repo_name = github_repository.split('/')[-1]
+        repo_name = github_repository.split("/")[-1]
         if not repo_name:
             logger.error("Missing required environment variable: REPO_NAME")
             sys.exit(1)
