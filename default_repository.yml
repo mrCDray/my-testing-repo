@@ -62,7 +62,7 @@ rulesets:
     # - active
     # - evaluate
     enforcement: evaluate
-     conditions:
+    conditions:
       # Parameters for a repository ruleset ref name condition
       ref_name:
         # Array of ref names or patterns to include. One of these
