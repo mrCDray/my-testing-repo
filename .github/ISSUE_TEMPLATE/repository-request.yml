@@ -45,7 +45,6 @@ body:
       label: Repository Configuration
       description: Repository settings (modify only if needed)
       value: |
-        ```yaml
         repository:
           has_issues: true
           has_projects: true
@@ -57,7 +56,6 @@ body:
           allow_auto_merge: false
           delete_branch_on_merge: true
           allow_update_branch: true
-        ```
 
   - type: textarea
     id: security-settings
@@ -65,11 +63,9 @@ body:
       label: Security Settings
       description: Security-related configurations (modify only if needed)
       value: |
-        ```yaml
         security:
           enableVulnerabilityAlerts: true
           enableAutomatedSecurityFixes: true
-        ```
 
   - type: textarea
     id: branch-protection
@@ -77,7 +73,6 @@ body:
       label: Branch Protection Rules
       description: Branch protection configurations (modify only if needed)
       value: |
-        ```yaml
         rulesets:
           - name: default
             target: branch
@@ -92,7 +87,6 @@ body:
                   require_code_owner_review: true
                   required_approving_review_count: 2
                   required_review_thread_resolution: true
-        ```
 
   - type: textarea
     id: custom-properties
@@ -100,13 +94,11 @@ body:
       label: Additional Settings
       description: Custom properties for the repository
       value: |
-        ```yaml
         custom_properties:
           - name: team
             value: ""
           - name: cost-center
             value: ""
-        ```
 
   - type: checkboxes
     id: terms
