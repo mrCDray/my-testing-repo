@@ -6,7 +6,6 @@ from github import Github
 from github import Github, GithubException
 
 
-
 class RepoIssueHandler:
     def __init__(self, token: str, org_name: str):
         self.github = Github(token)
@@ -83,51 +82,51 @@ class RepoIssueHandler:
         return len(errors) == 0, errors
 
     def handle_creation_issue(self, issue_number: int) -> None:
-            """Handle repository creation issue"""
-            try:
-                issue = self.org.get_issue(issue_number)
-                self._comment_on_issue(issue, "Processing repository creation request...")
-                
-                # Parse and validate configuration
-                config = self.parse_issue_body(issue)
-                logging.info(f"Parsed configuration: {config}")
-                
-                # Validate configuration
-                is_valid, errors = self.validate_config(config)
-                if not is_valid:
-                    error_msg = "Configuration validation failed:\n" + "\n".join(errors)
-                    logging.error(error_msg)
-                    self._comment_on_issue(issue, error_msg)
-                    return
+        """Handle repository creation issue"""
+        try:
+            issue = self.org.get_issue(issue_number)
+            self._comment_on_issue(issue, "Processing repository creation request...")
 
-                # Create repository
-                logging.info(f"Creating repository with config: {config['repository']}")
-                repo = self._create_repository(config)
-                
-                if not repo:
-                    error_msg = "Failed to create repository"
-                    logging.error(error_msg)
-                    self._comment_on_issue(issue, error_msg)
-                    return
+            # Parse and validate configuration
+            config = self.parse_issue_body(issue)
+            logging.info(f"Parsed configuration: {config}")
 
-                # Apply configuration
-                logging.info("Applying repository configuration")
-                changes = self._apply_repository_config(repo, config)
-                
-                # Close issue with success message
-                success_msg = (
-                    f"Repository {repo.name} created successfully\n"
-                    f"Repository URL: {repo.html_url}\n"
-                    f"Changes applied: \n```yaml\n{yaml.dump(changes)}\n```"
-                )
-                self._comment_on_issue(issue, success_msg)
-                issue.edit(state="closed")
-
-            except Exception as e:
-                error_msg = f"Error processing repository creation: {str(e)}"
+            # Validate configuration
+            is_valid, errors = self.validate_config(config)
+            if not is_valid:
+                error_msg = "Configuration validation failed:\n" + "\n".join(errors)
                 logging.error(error_msg)
                 self._comment_on_issue(issue, error_msg)
-                raise
+                return
+
+            # Create repository
+            logging.info(f"Creating repository with config: {config['repository']}")
+            repo = self._create_repository(config)
+
+            if not repo:
+                error_msg = "Failed to create repository"
+                logging.error(error_msg)
+                self._comment_on_issue(issue, error_msg)
+                return
+
+            # Apply configuration
+            logging.info("Applying repository configuration")
+            changes = self._apply_repository_config(repo, config)
+
+            # Close issue with success message
+            success_msg = (
+                f"Repository {repo.name} created successfully\n"
+                f"Repository URL: {repo.html_url}\n"
+                f"Changes applied: \n```yaml\n{yaml.dump(changes)}\n```"
+            )
+            self._comment_on_issue(issue, success_msg)
+            issue.edit(state="closed")
+
+        except Exception as e:
+            error_msg = f"Error processing repository creation: {str(e)}"
+            logging.error(error_msg)
+            self._comment_on_issue(issue, error_msg)
+            raise
 
     def handle_update_issue(self, issue_number: int) -> None:
         """Handle repository update issue"""

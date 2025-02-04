@@ -8,17 +8,15 @@ from github import Github, GithubException
 from scripts.repo_issue_handler import RepoIssueHandler
 
 # Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
 
 def main():
     # Get environment variables
-    token = os.getenv('GITHUB_TOKEN')
-    org_name = os.getenv('ORG_NAME')
-    issue_number = os.getenv('ISSUE_NUMBER')
+    token = os.getenv("GITHUB_TOKEN")
+    org_name = os.getenv("ORG_NAME")
+    issue_number = os.getenv("ISSUE_NUMBER")
 
     if not all([token, org_name, issue_number]):
         logger.error("Missing required environment variables")
@@ -40,11 +38,11 @@ def main():
 
         # Check issue labels to determine action
         labels = [label.name for label in issue.labels]
-        
-        if 'repo-creation' in labels:
+
+        if "repo-creation" in labels:
             logger.info("Handling repository creation")
             handler.handle_creation_issue(issue_number)
-        elif 'repo-update' in labels:
+        elif "repo-update" in labels:
             logger.info("Handling repository update")
             handler.handle_update_issue(issue_number)
         else:
@@ -60,6 +58,7 @@ def main():
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
