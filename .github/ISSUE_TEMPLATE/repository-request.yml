@@ -1,4 +1,3 @@
----
 name: Repository Request
 description: Request creation or update of a repository
 title: "[REPO] "
@@ -15,17 +14,18 @@ body:
     attributes:
       label: Repository Name
       description: Name for the repository
-      placeholder: my-new-repo
+      placeholder: repository_name: my-repo-name
     validations:
       required: true
 
   - type: dropdown 
-    id: temp-repo-name
+    id: template-repo
     attributes:
       label: Template Repository
-      description: Name for the template repository to use to create the new repository from
+      description: Optional template repository to use
       options: 
-        - template-repo
+        - "template_repository: none"
+        - "template_repository: template-repo"
     validations:
       required: false
 
@@ -35,8 +35,8 @@ body:
       label: Repository Visibility
       description: Select the visibility level for the repository
       options:
-        - internal
-        - private
+        - "repository_visibility: internal"
+        - "repository_visibility: private"
     validations:
       required: true
 
@@ -45,7 +45,9 @@ body:
     attributes:
       label: Repository Description
       description: Brief description of the repository's purpose
-      placeholder: This repository is for...
+      placeholder: |
+        repository_description: >-
+          Describe the purpose of this repository...
     validations:
       required: true
 
@@ -53,62 +55,67 @@ body:
     id: repo-config
     attributes:
       label: Repository Configuration
-      description: Repository settings (modify only if needed)
+      description: Repository settings (modify only if needed, leave empty for defaults)
       value: |
         repository:
-          has_issues: true
-          has_projects: true
-          has_wiki: true
-          default_branch: main
-          allow_squash_merge: true
-          allow_merge_commit: true
-          allow_rebase_merge: true
-          allow_auto_merge: false
-          delete_branch_on_merge: true
-          allow_update_branch: true
+          # Uncomment and modify only the settings you want to change
+          # has_issues: true
+          # has_projects: true
+          # has_wiki: true
+          # default_branch: main
+          # allow_squash_merge: true
+          # allow_merge_commit: true
+          # allow_rebase_merge: true
+          # allow_auto_merge: false
+          # delete_branch_on_merge: true
+          # allow_update_branch: true
 
   - type: textarea
     id: security-settings
     attributes:
       label: Security Settings
-      description: Security-related configurations (modify only if needed)
+      description: Security-related configurations (modify only if needed, leave empty for defaults)
       value: |
-        security:
-          enableVulnerabilityAlerts: true
-          enableAutomatedSecurityFixes: true
+        repository_security_settings:
+          # Uncomment and modify only the settings you want to change
+          # enableVulnerabilityAlerts: true
+          # enableAutomatedSecurityFixes: true
 
   - type: textarea
     id: branch-protection
     attributes:
       label: Branch Protection Rules
-      description: Branch protection configurations (modify only if needed)
+      description: Branch protection configurations (modify only if needed, leave empty for defaults)
       value: |
         rulesets:
-          - name: default
-            target: branch
-            enforcement: active
-            conditions:
-              ref_name:
-                include: ["~DEFAULT_BRANCH"]
-            rules:
-              - type: pull_request
-                parameters:
-                  dismiss_stale_reviews_on_push: true
-                  require_code_owner_review: true
-                  required_approving_review_count: 2
-                  required_review_thread_resolution: true
+          # Uncomment and modify only if you need different branch protection rules
+          # - name: default
+          #   target: branch
+          #   enforcement: active
+          #   conditions:
+          #     ref_name:
+          #       include: ["~DEFAULT_BRANCH"]
+          #   rules:
+          #     - type: pull_request
+          #       parameters:
+          #         dismiss_stale_reviews_on_push: true
+          #         require_code_owner_review: true
+          #         required_approving_review_count: 2
+          #         required_review_thread_resolution: true
 
   - type: textarea
     id: custom-properties
     attributes:
       label: Additional Settings
-      description: Custom properties for the repository
+      description: Custom properties for the repository (required fields)
       value: |
         custom_properties:
           - name: team
-            value: ""
+            value: ""  # Required: Add your team name
           - name: cost-center
-            value: ""
+            value: ""  # Required: Add your cost center
+    validations:
+      required: false
 
   - type: checkboxes
     id: terms

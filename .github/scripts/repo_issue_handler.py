@@ -7,6 +7,49 @@ from repo_sync_manager import RepoSyncManager
 
 
 class RepoIssueHandler:
+    # Add default configuration constants
+    DEFAULT_CONFIG = {
+        "repository": {
+            "has_issues": True,
+            "has_projects": True,
+            "has_wiki": True,
+            "default_branch": "main",
+            "allow_squash_merge": True,
+            "allow_merge_commit": True,
+            "allow_rebase_merge": True,
+            "allow_auto_merge": False,
+            "delete_branch_on_merge": True,
+            "allow_update_branch": True
+        },
+        "security": {
+            "enableVulnerabilityAlerts": True,
+            "enableAutomatedSecurityFixes": True
+        },
+        "rulesets": [{
+            "name": "default",
+            "target": "branch",
+            "enforcement": "active",
+            "conditions": {
+                "ref_name": {
+                    "include": ["~DEFAULT_BRANCH"]
+                }
+            },
+            "rules": [{
+                "type": "pull_request",
+                "parameters": {
+                    "dismiss_stale_reviews_on_push": True,
+                    "require_code_owner_review": True,
+                    "required_approving_review_count": 2,
+                    "required_review_thread_resolution": True
+                }
+            }]
+        }],
+        "custom_properties": [
+            {"name": "team", "value": ""},
+            {"name": "cost-center", "value": ""}
+        ]
+    }
+
     def __init__(self, token: str, org_name: str):
         self.github = Github(token)
         self.org = self.github.get_organization(org_name)
@@ -60,23 +103,22 @@ class RepoIssueHandler:
     def _parse_issue_body(self, issue) -> Dict[str, Any]:
         """Parse issue body with improved GitHub issue form handling"""
         form_data = issue.body
-        config = {"repository": {}, "security": {}, "rulesets": [], "custom_properties": []}
+        config = self.DEFAULT_CONFIG.copy()
 
         # Log the raw form data for debugging
         self.logger.debug(f"Raw form data:\n{form_data}")
 
-        # Map form fields to config structure
-        field_mappings = {
-            "repo-name": ("repository", "name"),
-            "visibility": ("repository", "visibility"),
-            "description": ("repository", "description"),
-            "temp-repo-name": ("template", None),
+        # Extract key-value pairs from form fields
+        field_patterns = {
+            "repository_name": ("repository", "name"),
+            "repository_visibility": ("repository", "visibility"),
+            "repository_description": ("repository", "description"),
+            "template_repository": ("template", None)
         }
 
-        # Extract basic fields
-        for form_field, (section, key) in field_mappings.items():
-            value = self._extract_form_field(form_data, form_field)
-            if value and value.lower() != "none":  # Skip None values
+        for pattern, (section, key) in field_patterns.items():
+            value = self._extract_field_value(form_data, pattern)
+            if value and value.lower() != "none":
                 if key:
                     if section not in config:
                         config[section] = {}
@@ -84,38 +126,36 @@ class RepoIssueHandler:
                 else:
                     config[section] = value
 
-        # Extract YAML sections
+        # Extract and merge YAML sections
         yaml_sections = {
-            "repo-config": "repository",
-            "security-settings": "security",
-            "branch-protection": "rulesets",
-            "custom-properties": "custom_properties",
+            "repository": "repository",
+            "repository_security_settings": "security",
+            "rulesets": "rulesets",
+            "custom_properties": "custom_properties"
         }
 
-        for form_field, config_section in yaml_sections.items():
-            yaml_content = self._extract_yaml_section(form_data, form_field)
+        for section_id, config_section in yaml_sections.items():
+            yaml_content = self._extract_yaml_section(form_data, section_id)
             if yaml_content:
                 try:
                     parsed_yaml = yaml.safe_load(yaml_content)
                     if parsed_yaml:
                         if isinstance(parsed_yaml, dict):
-                            # Merge dictionary contents
                             if config_section not in config:
                                 config[config_section] = {}
                             self._merge_configs(config[config_section], parsed_yaml)
                         elif isinstance(parsed_yaml, list):
                             config[config_section] = parsed_yaml
                         else:
-                            # Direct assignment for non-dict values
                             config[config_section] = parsed_yaml
 
-                        # Special handling for rulesets
-                        if config_section == "rulesets":
-                            self._normalize_ruleset_config(config[config_section])
-
                 except yaml.YAMLError as e:
-                    self.logger.error(f"Error parsing YAML in {form_field}: {str(e)}")
-                    raise ValueError(f"Invalid YAML in {form_field}: {str(e)}")
+                    self.logger.error(f"Error parsing YAML in {section_id}: {str(e)}")
+                    raise ValueError(f"Invalid YAML in {section_id}: {str(e)}")
+
+        # Normalize ruleset configuration
+        if "rulesets" in config:
+            self._normalize_ruleset_config(config["rulesets"])
 
         return config
 
@@ -132,25 +172,21 @@ class RepoIssueHandler:
                         else:
                             ref_name["include"] = [ref_name["include"]]
 
-    def _extract_form_field(self, form_data: str, field_id: str) -> Optional[str]:
-        """Extract value from form field with improved GitHub issue form parsing"""
+
+    def _extract_field_value(self, form_data: str, field_prefix: str) -> Optional[str]:
+        """Extract value from form field with key-value format"""
         patterns = [
-            # GitHub issue form format
-            f"### {field_id}.*?\\n\\n([^#\\n]+)",  # Basic field with double newline
-            f"### {field_id}.*?\\n([^#\\n]+)",  # Basic field with single newline
-            f"### {field_id}.*?\\n```(?:ya?ml)?\\n(.+?)```",  # Code block
-            f"### {field_id}.*?\\n- \\[[ xX]\\] (.+)",  # Checkbox
-            f"### {field_id}.*?\\n\\s*([^#\\n]+)",  # Field with potential spaces
+            f"{field_prefix}:\\s*([^\\n#]+)",  # Basic key-value pattern
+            f"### .*?\\n.*?{field_prefix}:\\s*([^\\n#]+)",  # Form field pattern
         ]
 
         for pattern in patterns:
-            match = re.search(pattern, form_data, re.DOTALL | re.MULTILINE)
+            match = re.search(pattern, form_data, re.IGNORECASE | re.MULTILINE)
             if match:
                 value = match.group(1).strip()
                 if value:
                     return value
 
-        self.logger.debug(f"Could not find value for field: {field_id}")
         return None
 
     def _extract_yaml_section(self, form_data: str, section_id: str) -> Optional[str]:
@@ -170,13 +206,14 @@ class RepoIssueHandler:
         return None
 
     def _merge_configs(self, target: Dict[str, Any], source: Dict[str, Any]) -> None:
-        """Merge configurations recursively"""
+        """Merge configurations recursively with improved handling of None values"""
         for key, value in source.items():
-            if isinstance(value, dict) and key in target:
-                if not isinstance(target[key], dict):
-                    target[key] = {}
+            if value is None:
+                # Skip None values to keep defaults
+                continue
+            elif isinstance(value, dict) and key in target and isinstance(target[key], dict):
                 self._merge_configs(target[key], value)
-            elif value is not None:
+            else:
                 target[key] = value
 
     def _validate_config(self, config: Dict[str, Any]) -> Tuple[bool, List[str]]:
