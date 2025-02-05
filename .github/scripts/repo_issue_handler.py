@@ -58,64 +58,111 @@ class RepoIssueHandler:
         return config, errors
 
     def _parse_issue_body(self, issue) -> Dict[str, Any]:
-        """Parse issue body with improved form field extraction"""
+        """Parse issue body with improved GitHub issue form handling"""
         form_data = issue.body
-        config = {}
+        config = {
+            "repository": {},
+            "security": {},
+            "rulesets": [],
+            "custom_properties": []
+        }
 
-        # Define field mappings
+        # Log the raw form data for debugging
+        self.logger.debug(f"Raw form data:\n{form_data}")
+
+        # Map form fields to config structure
         field_mappings = {
-            "repository": {"name": "repo-name", "visibility": "visibility", "description": "description"},
-            "template": "temp-repo-name",
+            "repo-name": ("repository", "name"),
+            "visibility": ("repository", "visibility"),
+            "description": ("repository", "description"),
+            "temp-repo-name": ("template", None)
         }
 
         # Extract basic fields
-        for section, fields in field_mappings.items():
-            if isinstance(fields, dict):
-                config[section] = {}
-                for config_key, form_key in fields.items():
-                    value = self._extract_form_field(form_data, form_key)
-                    if value:
-                        config[section][config_key] = value
-            else:
-                value = self._extract_form_field(form_data, fields)
-                if value:
+        for form_field, (section, key) in field_mappings.items():
+            value = self._extract_form_field(form_data, form_field)
+            if value:
+                if key:
+                    if section not in config:
+                        config[section] = {}
+                    config[section][key] = value
+                else:
                     config[section] = value
 
-        # Extract and parse YAML sections
-        yaml_sections = ["repo-config", "security-settings", "branch-protection", "custom-properties"]
+        # Extract YAML sections
+        yaml_sections = {
+            "repo-config": "repository",
+            "security-settings": "security",
+            "branch-protection": "rulesets",
+            "custom-properties": "custom_properties"
+        }
 
-        for section in yaml_sections:
-            yaml_content = self._extract_yaml_section(form_data, section)
+        for form_field, config_section in yaml_sections.items():
+            yaml_content = self._extract_yaml_section(form_data, form_field)
             if yaml_content:
                 try:
                     parsed_yaml = yaml.safe_load(yaml_content)
-                    self._merge_configs(config, parsed_yaml)
+                    if parsed_yaml:
+                        if isinstance(parsed_yaml, dict):
+                            # Merge dictionary contents
+                            if config_section not in config:
+                                config[config_section] = {}
+                            self._merge_configs(config[config_section], parsed_yaml)
+                        else:
+                            # Direct assignment for non-dict values
+                            config[config_section] = parsed_yaml
                 except yaml.YAMLError as e:
-                    self.logger.error(f"Error parsing YAML in {section}: {str(e)}")
-                    raise ValueError(f"Invalid YAML in {section}: {str(e)}")
+                    self.logger.error(f"Error parsing YAML in {form_field}: {str(e)}")
+                    raise ValueError(f"Invalid YAML in {form_field}: {str(e)}")
+
+        # Log the parsed config for debugging
+        self.logger.debug(f"Parsed config:\n{yaml.dump(config)}")
+
+        # Validate required fields
+        if not config["repository"].get("name"):
+            raise ValueError("Repository name is required")
+        
+        if not config["repository"].get("visibility"):
+            raise ValueError("Repository visibility is required")
 
         return config
 
     def _extract_form_field(self, form_data: str, field_id: str) -> Optional[str]:
-        """Extract value from form field with improved parsing"""
+        """Extract value from form field with improved GitHub issue form parsing"""
         patterns = [
-            f"### {field_id}\\s*\\n\\s*([^#\\n]+)",  # Basic field
-            f"### {field_id}\\s*\\n\\s*```[^\\n]*\\n(.+?)```",  # Code block
-            f"### {field_id}\\s*\\n\\s*- \\[[ x]\\] (.+)",  # Checkbox
+            # GitHub issue form format
+            f"### {field_id}.*?\\n\\n([^#\\n]+)",  # Basic field with double newline
+            f"### {field_id}.*?\\n([^#\\n]+)",      # Basic field with single newline
+            f"### {field_id}.*?\\n```(?:ya?ml)?\\n(.+?)```", # Code block
+            f"### {field_id}.*?\\n- \\[[ xX]\\] (.+)",  # Checkbox
+            f"### {field_id}.*?\\n\\s*([^#\\n]+)",  # Field with potential spaces
         ]
 
         for pattern in patterns:
             match = re.search(pattern, form_data, re.DOTALL | re.MULTILINE)
             if match:
-                return match.group(1).strip()
+                value = match.group(1).strip()
+                if value:
+                    return value
 
+        self.logger.debug(f"Could not find value for field: {field_id}")
         return None
 
     def _extract_yaml_section(self, form_data: str, section_id: str) -> Optional[str]:
-        """Extract YAML content from form section"""
-        pattern = f"### {section_id}\\s*\\n\\s*```ya?ml\\s*\\n(.+?)```"
-        match = re.search(pattern, form_data, re.DOTALL | re.MULTILINE)
-        return match.group(1) if match else None
+        """Extract YAML content from form section with improved parsing"""
+        patterns = [
+            f"### {section_id}.*?\\n```ya?ml\\n(.+?)```",  # Standard YAML block
+            f"### {section_id}.*?\\n(.+?)(?=###|$)",       # Fallback for plain text
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, form_data, re.DOTALL | re.MULTILINE)
+            if match:
+                content = match.group(1).strip()
+                if content:
+                    return content
+
+        return None
 
     def _merge_configs(self, target: Dict[str, Any], source: Dict[str, Any]) -> None:
         """Merge configurations recursively"""
