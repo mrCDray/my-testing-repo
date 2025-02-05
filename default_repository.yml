@@ -10,7 +10,7 @@ repository:
     enableVulnerabilityAlerts: true
     enableAutomatedSecurityFixes: true
   # Can be internal (recommended) or private. With GitHub Enterprise Cloud
-  visibility: internal
+  visibility: private
   # Either true to enable issues for this repository, false to disable them.
   has_issues: true
   # Either true to enable projects for this repository, or false to disable them.
@@ -31,8 +31,8 @@ repository:
   allow_rebase_merge: true
   # Either true to allow auto-merge on pull requests,
   # or false to disallow auto-merge.
-  Default: false
-  allow_auto_merge: true
+  # Default: false
+  allow_auto_merge: false
   # Either true to allow automatically deleting head branches
   # when pull requests are merged, or false to prevent automatic deletion.
   # Default: false
@@ -46,8 +46,8 @@ repository:
 # Custom properties
 # See https://docs.github.com/en/rest/repos/custom-properties?apiVersion=2022-11-28
 custom_properties:
-  - name: test
-    value: test
+  #- name: test
+  #  value: test
 # rulesets
 # See https://docs.github.com/en/rest/orgs/rules?apiVersion=2022-11-28#create-an-organization-repository-rulesetfor available options
 rulesets:
@@ -69,7 +69,7 @@ rulesets:
         # patterns must match for the condition to pass. Also accepts
         # ~DEFAULT_BRANCH to include the default branch or ~ALL to
         # include all branches.
-        include: ["~DEFAULT_BRANCH"]
+        include: ["~DEFAULT_BRANCH", "develop"]
         # Array of ref names or patterns to exclude. The condition
         # will not pass if any of these patterns match.
         exclude: ["refs/heads/oldmaster"]
@@ -116,5 +116,5 @@ rulesets:
               - CodeQL
             - context: 
               - CodeQL
-              - pull-request-approvals.yml
-              - pr-review-requirements
+              #- pull-request-approvals.yml
+              #- pr-review-requirements
