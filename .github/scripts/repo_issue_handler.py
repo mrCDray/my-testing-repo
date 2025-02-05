@@ -19,35 +19,29 @@ class RepoIssueHandler:
             "allow_rebase_merge": True,
             "allow_auto_merge": False,
             "delete_branch_on_merge": True,
-            "allow_update_branch": True
+            "allow_update_branch": True,
         },
-        "security": {
-            "enableVulnerabilityAlerts": True,
-            "enableAutomatedSecurityFixes": True
-        },
-        "rulesets": [{
-            "name": "default",
-            "target": "branch",
-            "enforcement": "active",
-            "conditions": {
-                "ref_name": {
-                    "include": ["~DEFAULT_BRANCH"]
-                }
-            },
-            "rules": [{
-                "type": "pull_request",
-                "parameters": {
-                    "dismiss_stale_reviews_on_push": True,
-                    "require_code_owner_review": True,
-                    "required_approving_review_count": 2,
-                    "required_review_thread_resolution": True
-                }
-            }]
-        }],
-        "custom_properties": [
-            {"name": "team", "value": ""},
-            {"name": "cost-center", "value": ""}
-        ]
+        "security": {"enableVulnerabilityAlerts": True, "enableAutomatedSecurityFixes": True},
+        "rulesets": [
+            {
+                "name": "default",
+                "target": "branch",
+                "enforcement": "active",
+                "conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"]}},
+                "rules": [
+                    {
+                        "type": "pull_request",
+                        "parameters": {
+                            "dismiss_stale_reviews_on_push": True,
+                            "require_code_owner_review": True,
+                            "required_approving_review_count": 2,
+                            "required_review_thread_resolution": True,
+                        },
+                    }
+                ],
+            }
+        ],
+        "custom_properties": [{"name": "team", "value": ""}, {"name": "cost-center", "value": ""}],
     }
 
     def __init__(self, token: str, org_name: str):
@@ -113,7 +107,7 @@ class RepoIssueHandler:
             "repository_name": ("repository", "name"),
             "repository_visibility": ("repository", "visibility"),
             "repository_description": ("repository", "description"),
-            "template_repository": ("template", None)
+            "template_repository": ("template", None),
         }
 
         for pattern, (section, key) in field_patterns.items():
@@ -131,7 +125,7 @@ class RepoIssueHandler:
             "repository": "repository",
             "repository_security_settings": "security",
             "rulesets": "rulesets",
-            "custom_properties": "custom_properties"
+            "custom_properties": "custom_properties",
         }
 
         for section_id, config_section in yaml_sections.items():
@@ -171,7 +165,6 @@ class RepoIssueHandler:
                             ref_name["include"] = ["~DEFAULT_BRANCH"]
                         else:
                             ref_name["include"] = [ref_name["include"]]
-
 
     def _extract_field_value(self, form_data: str, field_prefix: str) -> Optional[str]:
         """Extract value from form field with key-value format"""
