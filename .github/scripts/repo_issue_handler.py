@@ -60,7 +60,12 @@ class RepoIssueHandler:
     def _parse_issue_body(self, issue) -> Dict[str, Any]:
         """Parse issue body with improved GitHub issue form handling"""
         form_data = issue.body
-        config = {"repository": {}, "security": {}, "rulesets": [], "custom_properties": []}
+        config = {
+            "repository": {},
+            "security": {},
+            "rulesets": [],
+            "custom_properties": []
+        }
 
         # Log the raw form data for debugging
         self.logger.debug(f"Raw form data:\n{form_data}")
@@ -70,13 +75,13 @@ class RepoIssueHandler:
             "repo-name": ("repository", "name"),
             "visibility": ("repository", "visibility"),
             "description": ("repository", "description"),
-            "temp-repo-name": ("template", None),
+            "temp-repo-name": ("template", None)
         }
 
         # Extract basic fields
         for form_field, (section, key) in field_mappings.items():
             value = self._extract_form_field(form_data, form_field)
-            if value:
+            if value and value.lower() != "none":  # Skip None values
                 if key:
                     if section not in config:
                         config[section] = {}
@@ -89,7 +94,7 @@ class RepoIssueHandler:
             "repo-config": "repository",
             "security-settings": "security",
             "branch-protection": "rulesets",
-            "custom-properties": "custom_properties",
+            "custom-properties": "custom_properties"
         }
 
         for form_field, config_section in yaml_sections.items():
@@ -103,24 +108,36 @@ class RepoIssueHandler:
                             if config_section not in config:
                                 config[config_section] = {}
                             self._merge_configs(config[config_section], parsed_yaml)
+                        elif isinstance(parsed_yaml, list):
+                            config[config_section] = parsed_yaml
                         else:
                             # Direct assignment for non-dict values
                             config[config_section] = parsed_yaml
+
+                        # Special handling for rulesets
+                        if config_section == "rulesets":
+                            self._normalize_ruleset_config(config[config_section])
+
                 except yaml.YAMLError as e:
                     self.logger.error(f"Error parsing YAML in {form_field}: {str(e)}")
                     raise ValueError(f"Invalid YAML in {form_field}: {str(e)}")
 
-        # Log the parsed config for debugging
-        self.logger.debug(f"Parsed config:\n{yaml.dump(config)}")
-
-        # Validate required fields
-        if not config["repository"].get("name"):
-            raise ValueError("Repository name is required")
-
-        if not config["repository"].get("visibility"):
-            raise ValueError("Repository visibility is required")
-
         return config
+    
+    
+    def _normalize_ruleset_config(self, rulesets: List[Dict[str, Any]]) -> None:
+        """Normalize ruleset configuration to handle various input formats"""
+        for ruleset in rulesets:
+            if "conditions" in ruleset and "ref_name" in ruleset["conditions"]:
+                ref_name = ruleset["conditions"]["ref_name"]
+                if "include" in ref_name:
+                    # Convert string to list if necessary
+                    if isinstance(ref_name["include"], str):
+                        if ref_name["include"] == "main":
+                            ref_name["include"] = ["~DEFAULT_BRANCH"]
+                        else:
+                            ref_name["include"] = [ref_name["include"]]
+
 
     def _extract_form_field(self, form_data: str, field_id: str) -> Optional[str]:
         """Extract value from form field with improved GitHub issue form parsing"""
@@ -186,18 +203,31 @@ class RepoIssueHandler:
                 errors.append("Invalid repository name format")
 
             # Validate visibility
-            if "visibility" in repo_config:
-                if repo_config["visibility"] not in ["internal", "private"]:
-                    errors.append("Visibility must be either 'internal' or 'private'")
+            if "visibility" not in repo_config:
+                errors.append("Repository visibility is required")
+            elif repo_config["visibility"] not in ["internal", "private"]:
+                errors.append("Visibility must be either 'internal' or 'private'")
 
         # Validate YAML sections
         if "rulesets" in config:
             if not isinstance(config["rulesets"], list):
                 errors.append("Rulesets must be a list")
+            else:
+                for ruleset in config["rulesets"]:
+                    if not isinstance(ruleset, dict):
+                        errors.append("Each ruleset must be a dictionary")
+                    elif "name" not in ruleset:
+                        errors.append("Each ruleset must have a name")
 
         if "custom_properties" in config:
             if not isinstance(config["custom_properties"], list):
                 errors.append("Custom properties must be a list")
+            else:
+                for prop in config["custom_properties"]:
+                    if not isinstance(prop, dict):
+                        errors.append("Each custom property must be a dictionary")
+                    elif "name" not in prop:
+                        errors.append("Each custom property must have a name")
 
         return len(errors) == 0, errors
 
