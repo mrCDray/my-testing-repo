@@ -6,30 +6,30 @@ from github import Github, GithubException
 from github.Repository import Repository
 from github.GitRef import GitRef
 
+
 class RepositoryConfigManager:
     def __init__(self, github_token, organization):
         """
         Initialize the repository configuration manager.
-        
+
         :param github_token: GitHub Personal Access Token with repo and org permissions
         :param organization: GitHub organization name
         """
         self.g = Github(github_token)
         self.org = self.g.get_organization(organization)
-        logging.basicConfig(level=logging.INFO, 
-                            format='%(asctime)s - %(levelname)s - %(message)s')
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
         self.logger = logging.getLogger(__name__)
 
-    def load_default_config(self, config_path='default_repository.yml'):
+    def load_default_config(self, config_path="default_repository.yml"):
         """
         Load the default repository configuration.
-        
+
         :param config_path: Path to the default repository configuration file
         :return: Parsed configuration dictionary
         """
         try:
-            with open(config_path, 'r') as file:
-                return yaml.safe_load(file)['repository']
+            with open(config_path, "r") as file:
+                return yaml.safe_load(file)["repository"]
         except FileNotFoundError:
             self.logger.error(f"Default configuration file not found at {config_path}")
             sys.exit(1)
@@ -40,39 +40,39 @@ class RepositoryConfigManager:
     def ensure_repo_config_directory(self, repo_name):
         """
         Ensure the repositories configuration directory exists.
-        
+
         :param repo_name: Name of the repository
         """
-        config_dir = f'repositories/{repo_name}'
+        config_dir = f"repositories/{repo_name}"
         os.makedirs(config_dir, exist_ok=True)
 
     def save_repo_config(self, repo: Repository, repo_name: str, config: dict):
         """
         Save repository-specific configuration and commit to the repository.
-        
+
         :param repo: GitHub Repository object
         :param repo_name: Name of the repository
         :param config: Configuration dictionary to save
         """
         # Ensure configuration directory exists
         self.ensure_repo_config_directory(repo_name)
-        
+
         # Local configuration file path
-        config_path = f'repositories/{repo_name}/repository.yml'
-        
+        config_path = f"repositories/{repo_name}/repository.yml"
+
         # Save configuration locally
-        with open(config_path, 'w') as file:
-            yaml.dump({'repository': config}, file, default_flow_style=False)
-        
+        with open(config_path, "w") as file:
+            yaml.dump({"repository": config}, file, default_flow_style=False)
+
         # Commit the configuration file to the repository
         self._commit_config_to_repo(repo, config_path, repo_name)
-        
+
         self.logger.info(f"Saved and committed configuration for {repo_name}")
 
     def _commit_config_to_repo(self, repo: Repository, config_path: str, repo_name: str):
         """
         Commit the configuration file to the repository.
-        
+
         :param repo: GitHub Repository object
         :param config_path: Path to the local configuration file
         :param repo_name: Name of the repository
@@ -80,15 +80,15 @@ class RepositoryConfigManager:
         try:
             # Get the default branch
             default_branch = repo.get_branch(repo.default_branch)
-            
+
             # Read the configuration file content
-            with open(config_path, 'r') as file:
+            with open(config_path, "r") as file:
                 config_content = file.read()
-            
+
             # Prepare the commit
             commit_message = f"Add repository configuration for {repo_name}"
-            config_file_path = f'repositories/{repo_name}/repository.yml'
-            
+            config_file_path = f"repositories/{repo_name}/repository.yml"
+
             # Try to get the current file if it exists
             try:
                 current_file = repo.get_contents(config_file_path, ref=default_branch.commit.sha)
@@ -98,19 +98,16 @@ class RepositoryConfigManager:
                     message=commit_message,
                     content=config_content,
                     sha=current_file.sha,
-                    branch=repo.default_branch
+                    branch=repo.default_branch,
                 )
             except GithubException:
                 # File doesn't exist, create it
                 repo.create_file(
-                    path=config_file_path,
-                    message=commit_message,
-                    content=config_content,
-                    branch=repo.default_branch
+                    path=config_file_path, message=commit_message, content=config_content, branch=repo.default_branch
                 )
-            
+
             self.logger.info(f"Committed configuration file for {repo_name}")
-        
+
         except Exception as e:
             self.logger.error(f"Error committing configuration for {repo_name}: {e}")
             # Don't exit, as this is not a critical failure
@@ -118,7 +115,7 @@ class RepositoryConfigManager:
     def create_or_update_repository(self, repo_name, default_config):
         """
         Create a new repository or update an existing one based on configuration.
-        
+
         :param repo_name: Name of the repository
         :param default_config: Default configuration dictionary
         """
@@ -132,8 +129,8 @@ class RepositoryConfigManager:
                 # Repository doesn't exist, create it
                 repo = self.org.create_repo(
                     name=repo_name,
-                    private=default_config.get('visibility', 'private') == 'private',
-                    auto_init=True  # Initialize with README
+                    private=default_config.get("visibility", "private") == "private",
+                    auto_init=True,  # Initialize with README
                 )
                 self.logger.info(f"Created new repository {repo_name}")
                 update_mode = False
@@ -151,7 +148,7 @@ class RepositoryConfigManager:
     def _update_repo_settings(self, repo: Repository, config: dict):
         """
         Update repository settings based on configuration.
-        
+
         :param repo: GitHub Repository object
         :param config: Configuration dictionary
         """
@@ -209,21 +206,22 @@ class RepositoryConfigManager:
 
 def main():
     # These should be passed as environment variables or arguments
-    GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
-    GITHUB_ORGANIZATION = os.environ.get('GITHUB_ORGANIZATION')
-    
+    GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+    GITHUB_ORGANIZATION = os.environ.get("GITHUB_ORGANIZATION")
+
     if not GITHUB_TOKEN or not GITHUB_ORGANIZATION:
         logging.error("GitHub Token or Organization not provided")
         sys.exit(1)
 
     manager = RepositoryConfigManager(GITHUB_TOKEN, GITHUB_ORGANIZATION)
-    
+
     # Load default configuration
     default_config = manager.load_default_config()
-    
+
     # Example: Create or update a specific repository
-    repo_name = os.environ.get('REPOSITORY_NAME', default_config['name'])
+    repo_name = os.environ.get("REPOSITORY_NAME", default_config["name"])
     manager.create_or_update_repository(repo_name, default_config)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
