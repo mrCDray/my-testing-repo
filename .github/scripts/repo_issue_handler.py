@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional, Tuple, List
 from github import Github, GithubException
 from repo_sync_manager import RepoSyncManager
 
+
 class RepoIssueHandler:
     def __init__(self, token: str, org_name: str):
         self.github = Github(token)
@@ -18,17 +19,17 @@ class RepoIssueHandler:
             # Get the issue from the repository
             repo = self.org.get_repo(repo_name)
             issue = repo.get_issue(issue_number)
-            
+
             # Parse and validate the issue body
             config, validation_errors = self._parse_and_validate_issue(issue)
-            
+
             if validation_errors:
                 self._handle_validation_errors(issue, validation_errors)
                 return
 
             # Check if repository exists
             repo_exists = self._check_repository_exists(config["repository"]["name"])
-            
+
             try:
                 if repo_exists:
                     self._handle_update(issue, config)
@@ -63,12 +64,8 @@ class RepoIssueHandler:
 
         # Define field mappings
         field_mappings = {
-            "repository": {
-                "name": "repo-name",
-                "visibility": "visibility",
-                "description": "description"
-            },
-            "template": "temp-repo-name"
+            "repository": {"name": "repo-name", "visibility": "visibility", "description": "description"},
+            "template": "temp-repo-name",
         }
 
         # Extract basic fields
@@ -85,12 +82,7 @@ class RepoIssueHandler:
                     config[section] = value
 
         # Extract and parse YAML sections
-        yaml_sections = [
-            "repo-config",
-            "security-settings",
-            "branch-protection",
-            "custom-properties"
-        ]
+        yaml_sections = ["repo-config", "security-settings", "branch-protection", "custom-properties"]
 
         for section in yaml_sections:
             yaml_content = self._extract_yaml_section(form_data, section)
@@ -109,7 +101,7 @@ class RepoIssueHandler:
         patterns = [
             f"### {field_id}\\s*\\n\\s*([^#\\n]+)",  # Basic field
             f"### {field_id}\\s*\\n\\s*```[^\\n]*\\n(.+?)```",  # Code block
-            f"### {field_id}\\s*\\n\\s*- \\[[ x]\\] (.+)"  # Checkbox
+            f"### {field_id}\\s*\\n\\s*- \\[[ x]\\] (.+)",  # Checkbox
         ]
 
         for pattern in patterns:
@@ -144,7 +136,7 @@ class RepoIssueHandler:
             errors.append("Missing repository configuration section")
         else:
             repo_config = config["repository"]
-            
+
             # Validate repository name
             if "name" not in repo_config:
                 errors.append("Repository name is required")
@@ -181,11 +173,7 @@ class RepoIssueHandler:
             repo_name = config["repository"]["name"]
             template_repo = config.get("template")
 
-            self.sync_manager.create_repository(
-                repo_name=repo_name,
-                config=config,
-                template_repo_name=template_repo
-            )
+            self.sync_manager.create_repository(repo_name=repo_name, config=config, template_repo_name=template_repo)
 
             success_msg = (
                 f"✅ Repository {repo_name} created successfully!\n\n"
@@ -219,10 +207,7 @@ class RepoIssueHandler:
                     f"```yaml\n{yaml.dump(changes, default_flow_style=False)}\n```"
                 )
             else:
-                success_msg = (
-                    f"ℹ️ Repository {repo_name} is already up to date.\n"
-                    "No changes were necessary."
-                )
+                success_msg = f"ℹ️ Repository {repo_name} is already up to date.\n" "No changes were necessary."
 
             self._close_issue_with_success(issue, success_msg)
 
@@ -238,10 +223,7 @@ class RepoIssueHandler:
 
     def _handle_validation_errors(self, issue, errors: List[str]) -> None:
         """Handle validation errors"""
-        error_msg = (
-            "❌ Invalid repository configuration\n\n"
-            "Please fix the following issues:\n"
-        )
+        error_msg = "❌ Invalid repository configuration\n\n" "Please fix the following issues:\n"
         for error in errors:
             error_msg += f"- {error}\n"
 

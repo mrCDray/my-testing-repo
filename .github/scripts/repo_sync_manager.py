@@ -4,6 +4,7 @@ import logging
 from github import Github
 from typing import Dict, Any, List, Optional
 
+
 class RepoSyncManager:
     def __init__(self, token: str, org_name: str):
         self.github = Github(token)
@@ -20,7 +21,9 @@ class RepoSyncManager:
             self.logger.error(f"Error loading default config: {str(e)}")
             raise
 
-    def create_repository(self, repo_name: str, config: Dict[str, Any], template_repo_name: Optional[str] = None) -> None:
+    def create_repository(
+        self, repo_name: str, config: Dict[str, Any], template_repo_name: Optional[str] = None
+    ) -> None:
         """Create a new repository using template or default settings"""
         try:
             # Check if repository already exists
@@ -45,15 +48,15 @@ class RepoSyncManager:
                     name=repo_name,
                     description=merged_config["repository"].get("description", ""),
                     private=(merged_config["repository"]["visibility"] == "private"),
-                    auto_init=True
+                    auto_init=True,
                 )
 
             # Apply configuration
             self._apply_repository_config(repo, merged_config)
-            
+
             # Create repository.yml in the new repository
             self._create_repository_config_file(repo, merged_config)
-            
+
             self.logger.info(f"Successfully created repository: {repo_name}")
 
         except Exception as e:
@@ -65,17 +68,17 @@ class RepoSyncManager:
         try:
             repo = self.org.get_repo(repo_name)
             current_config = self._get_repository_config(repo)
-            
+
             # Merge new config with current config
             merged_config = current_config.copy()
             self._merge_configs(merged_config, new_config)
-            
+
             # Apply changes and track what was updated
             changes = self._sync_repository_with_config(repo, merged_config)
-            
+
             # Update repository.yml with merged config
             self._create_repository_config_file(repo, merged_config)
-            
+
             return changes
 
         except Exception as e:
@@ -85,21 +88,21 @@ class RepoSyncManager:
     def sync_all_repositories(self) -> Dict[str, Any]:
         """Sync all repositories with their configuration files"""
         sync_results = {}
-        
+
         try:
             for repo in self.org.get_repos():
                 try:
                     config = self._get_repository_config(repo)
                     changes = self._sync_repository_with_config(repo, config)
-                    
+
                     if changes:
                         sync_results[repo.name] = changes
                         self.logger.info(f"Synced repository {repo.name}: {changes}")
-                    
+
                 except Exception as e:
                     sync_results[repo.name] = f"Error: {str(e)}"
                     self.logger.error(f"Error syncing repository {repo.name}: {str(e)}")
-            
+
             return sync_results
 
         except Exception as e:
@@ -135,22 +138,13 @@ class RepoSyncManager:
         """Create or update repository.yml config file"""
         try:
             config_content = yaml.dump(config, default_flow_style=False)
-            
+
             try:
                 file = repo.get_contents("repository.yml")
-                repo.update_file(
-                    "repository.yml",
-                    "Update repository configuration",
-                    config_content,
-                    file.sha
-                )
+                repo.update_file("repository.yml", "Update repository configuration", config_content, file.sha)
             except:
-                repo.create_file(
-                    "repository.yml",
-                    "Initial repository configuration",
-                    config_content
-                )
-                
+                repo.create_file("repository.yml", "Initial repository configuration", config_content)
+
         except Exception as e:
             self.logger.error(f"Error creating/updating config file: {str(e)}")
             raise
@@ -158,24 +152,24 @@ class RepoSyncManager:
     def _sync_repository_with_config(self, repo, config: Dict[str, Any]) -> Dict[str, Any]:
         """Synchronize repository settings with configuration"""
         changes = {}
-        
+
         try:
             # Update basic repository settings
             repo_config = config.get("repository", {})
             changes.update(self._sync_repo_settings(repo, repo_config))
-            
+
             # Update security settings
             if "security" in config:
                 changes.update(self._sync_security_settings(repo, config["security"]))
-            
+
             # Update branch protection rules
             if "rulesets" in config:
                 changes.update(self._sync_branch_protection(repo, config["rulesets"]))
-            
+
             # Update custom properties
             if "custom_properties" in config:
                 changes.update(self._sync_custom_properties(repo, config["custom_properties"]))
-            
+
             return changes
 
         except Exception as e:
@@ -186,54 +180,60 @@ class RepoSyncManager:
         """Sync basic repository settings"""
         changes = {}
         settable_attrs = [
-            "has_issues", "has_projects", "has_wiki", "default_branch",
-            "allow_squash_merge", "allow_merge_commit", "allow_rebase_merge",
-            "allow_auto_merge", "delete_branch_on_merge"
+            "has_issues",
+            "has_projects",
+            "has_wiki",
+            "default_branch",
+            "allow_squash_merge",
+            "allow_merge_commit",
+            "allow_rebase_merge",
+            "allow_auto_merge",
+            "delete_branch_on_merge",
         ]
-        
+
         update_dict = {}
         for attr in settable_attrs:
             if attr in config and getattr(repo, attr) != config[attr]:
                 update_dict[attr] = config[attr]
                 changes[attr] = f"{getattr(repo, attr)} → {config[attr]}"
-        
+
         if update_dict:
             repo.edit(**update_dict)
-        
+
         return changes
 
     def _sync_security_settings(self, repo, config: Dict[str, Any]) -> Dict[str, Any]:
         """Sync security settings"""
         changes = {}
-        
+
         if config.get("enableVulnerabilityAlerts"):
             repo.enable_vulnerability_alert()
             changes["vulnerability_alerts"] = "enabled"
-            
+
         if config.get("enableAutomatedSecurityFixes"):
             repo.enable_automated_security_fixes()
             changes["automated_security_fixes"] = "enabled"
-            
+
         return changes
 
     def _sync_branch_protection(self, repo, rulesets: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Sync branch protection rules"""
         changes = {}
-        
+
         for ruleset in rulesets:
             # Implementation for updating branch protection rules
             # This would need to be customized based on your specific requirements
             pass
-            
+
         return changes
 
     def _sync_custom_properties(self, repo, properties: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Sync custom properties"""
         changes = {}
-        
+
         for prop in properties:
             # Implementation for updating custom properties
             # This would need to be customized based on your specific requirements
             pass
-            
+
         return changes

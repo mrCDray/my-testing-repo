@@ -6,11 +6,9 @@ import logging
 from repo_sync_manager import RepoSyncManager
 
 # Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
 
 def main():
     # Get environment variables
@@ -24,10 +22,10 @@ def main():
     try:
         # Initialize sync manager
         sync_manager = RepoSyncManager(token, org_name)
-        
+
         # Sync all repositories
         results = sync_manager.sync_all_repositories()
-        
+
         # Log results
         for repo_name, changes in results.items():
             if isinstance(changes, str) and changes.startswith("Error"):
@@ -41,6 +39,7 @@ def main():
     except Exception as e:
         logger.error(f"Sync failed: {str(e)}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
