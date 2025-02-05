@@ -60,12 +60,7 @@ class RepoIssueHandler:
     def _parse_issue_body(self, issue) -> Dict[str, Any]:
         """Parse issue body with improved GitHub issue form handling"""
         form_data = issue.body
-        config = {
-            "repository": {},
-            "security": {},
-            "rulesets": [],
-            "custom_properties": []
-        }
+        config = {"repository": {}, "security": {}, "rulesets": [], "custom_properties": []}
 
         # Log the raw form data for debugging
         self.logger.debug(f"Raw form data:\n{form_data}")
@@ -75,7 +70,7 @@ class RepoIssueHandler:
             "repo-name": ("repository", "name"),
             "visibility": ("repository", "visibility"),
             "description": ("repository", "description"),
-            "temp-repo-name": ("template", None)
+            "temp-repo-name": ("template", None),
         }
 
         # Extract basic fields
@@ -94,7 +89,7 @@ class RepoIssueHandler:
             "repo-config": "repository",
             "security-settings": "security",
             "branch-protection": "rulesets",
-            "custom-properties": "custom_properties"
+            "custom-properties": "custom_properties",
         }
 
         for form_field, config_section in yaml_sections.items():
@@ -121,7 +116,7 @@ class RepoIssueHandler:
         # Validate required fields
         if not config["repository"].get("name"):
             raise ValueError("Repository name is required")
-        
+
         if not config["repository"].get("visibility"):
             raise ValueError("Repository visibility is required")
 
@@ -132,8 +127,8 @@ class RepoIssueHandler:
         patterns = [
             # GitHub issue form format
             f"### {field_id}.*?\\n\\n([^#\\n]+)",  # Basic field with double newline
-            f"### {field_id}.*?\\n([^#\\n]+)",      # Basic field with single newline
-            f"### {field_id}.*?\\n```(?:ya?ml)?\\n(.+?)```", # Code block
+            f"### {field_id}.*?\\n([^#\\n]+)",  # Basic field with single newline
+            f"### {field_id}.*?\\n```(?:ya?ml)?\\n(.+?)```",  # Code block
             f"### {field_id}.*?\\n- \\[[ xX]\\] (.+)",  # Checkbox
             f"### {field_id}.*?\\n\\s*([^#\\n]+)",  # Field with potential spaces
         ]
@@ -152,7 +147,7 @@ class RepoIssueHandler:
         """Extract YAML content from form section with improved parsing"""
         patterns = [
             f"### {section_id}.*?\\n```ya?ml\\n(.+?)```",  # Standard YAML block
-            f"### {section_id}.*?\\n(.+?)(?=###|$)",       # Fallback for plain text
+            f"### {section_id}.*?\\n(.+?)(?=###|$)",  # Fallback for plain text
         ]
 
         for pattern in patterns:
