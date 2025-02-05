@@ -14,7 +14,7 @@ body:
     attributes:
       label: Repository Name
       description: Name for the repository
-      placeholder: repository_name: my-repo-name
+      placeholder: "repository_name: my-repo-name"
     validations:
       required: true
 
@@ -110,12 +110,11 @@ body:
       description: Custom properties for the repository (required fields)
       value: |
         custom_properties:
-          - name: team
-            value: ""  # Required: Add your team name
-          - name: cost-center
-            value: ""  # Required: Add your cost center
-    validations:
-      required: false
+          # Uncomment and modify only if you need to create custom properties
+          # - name: team
+          #   value: ""  # Required: Add your team name
+          # - name: cost-center
+          #   value: ""  # Required: Add your cost center
 
   - type: checkboxes
     id: terms
