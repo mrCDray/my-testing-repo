@@ -60,12 +60,7 @@ class RepoIssueHandler:
     def _parse_issue_body(self, issue) -> Dict[str, Any]:
         """Parse issue body with improved GitHub issue form handling"""
         form_data = issue.body
-        config = {
-            "repository": {},
-            "security": {},
-            "rulesets": [],
-            "custom_properties": []
-        }
+        config = {"repository": {}, "security": {}, "rulesets": [], "custom_properties": []}
 
         # Log the raw form data for debugging
         self.logger.debug(f"Raw form data:\n{form_data}")
@@ -75,7 +70,7 @@ class RepoIssueHandler:
             "repo-name": ("repository", "name"),
             "visibility": ("repository", "visibility"),
             "description": ("repository", "description"),
-            "temp-repo-name": ("template", None)
+            "temp-repo-name": ("template", None),
         }
 
         # Extract basic fields
@@ -94,7 +89,7 @@ class RepoIssueHandler:
             "repo-config": "repository",
             "security-settings": "security",
             "branch-protection": "rulesets",
-            "custom-properties": "custom_properties"
+            "custom-properties": "custom_properties",
         }
 
         for form_field, config_section in yaml_sections.items():
@@ -123,8 +118,7 @@ class RepoIssueHandler:
                     raise ValueError(f"Invalid YAML in {form_field}: {str(e)}")
 
         return config
-    
-    
+
     def _normalize_ruleset_config(self, rulesets: List[Dict[str, Any]]) -> None:
         """Normalize ruleset configuration to handle various input formats"""
         for ruleset in rulesets:
@@ -137,7 +131,6 @@ class RepoIssueHandler:
                             ref_name["include"] = ["~DEFAULT_BRANCH"]
                         else:
                             ref_name["include"] = [ref_name["include"]]
-
 
     def _extract_form_field(self, form_data: str, field_id: str) -> Optional[str]:
         """Extract value from form field with improved GitHub issue form parsing"""
