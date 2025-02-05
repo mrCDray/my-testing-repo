@@ -12,6 +12,9 @@ on:
       - 'default_repository.yml'
       - 'repositories/*/repository.yml'
 
+permissions:
+  contents: write
+
 jobs:
   manage-repository:
     runs-on: ubuntu-latest
