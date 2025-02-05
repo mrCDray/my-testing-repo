@@ -19,6 +19,16 @@ body:
     validations:
       required: true
 
+  - type: dropdown 
+    id: temp-repo-name
+    attributes:
+      label: Template Repository
+      description: Name for the template repository to use to create the new repository from
+      options: 
+        - template-repo
+    validations:
+      required: false
+
   - type: dropdown
     id: visibility
     attributes:
@@ -106,4 +116,4 @@ body:
       label: Code of Conduct
       description: By submitting this issue, you agree to follow our repository policies
       options:
-        - label: I have reviewed the repository settings and confirm they meet our organization's req
+        - label: I have reviewed the repository settings and confirm they meet our organization's requirements

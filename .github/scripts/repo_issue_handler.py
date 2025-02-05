@@ -1,228 +1,275 @@
 import re
 import yaml
 import logging
-from typing import Dict, Any, Optional, List, Tuple
-from github import Github
+from typing import Dict, Any, Optional, Tuple, List
 from github import Github, GithubException
-
+from repo_sync_manager import RepoSyncManager
 
 class RepoIssueHandler:
-    def __init__(self, token: str, org_name: str, repo_name: str):
+    def __init__(self, token: str, org_name: str):
         self.github = Github(token)
         self.org = self.github.get_organization(org_name)
-        self.default_config = self._load_default_config()
-        self.repo = self.org.get_repo(repo_name)
+        self.sync_manager = RepoSyncManager(token, org_name)
         self.logger = logging.getLogger(__name__)
 
-    def _load_default_config(self) -> Dict[str, Any]:
-        """Load default repository configuration"""
-        with open("default_repository.yml", "r") as f:
-            return yaml.safe_load(f)
+    def process_issue(self, issue_number: int, repo_name: str) -> None:
+        """Process repository creation/update issue"""
+        try:
+            # Get the issue from the repository
+            repo = self.org.get_repo(repo_name)
+            issue = repo.get_issue(issue_number)
+            
+            # Parse and validate the issue body
+            config, validation_errors = self._parse_and_validate_issue(issue)
+            
+            if validation_errors:
+                self._handle_validation_errors(issue, validation_errors)
+                return
 
-    def parse_issue_body(self, issue) -> Dict[str, Any]:
-        """Parse issue body from the form-based template"""
-        config = {"repository": {}, "security": {}, "rulesets": [], "custom_properties": []}
+            # Check if repository exists
+            repo_exists = self._check_repository_exists(config["repository"]["name"])
+            
+            try:
+                if repo_exists:
+                    self._handle_update(issue, config)
+                else:
+                    self._handle_creation(issue, config)
+            except Exception as e:
+                self._handle_error(issue, str(e))
 
-        # Get form data from issue body
+        except Exception as e:
+            self.logger.error(f"Error processing issue {issue_number}: {str(e)}")
+            raise
+
+    def _parse_and_validate_issue(self, issue) -> Tuple[Dict[str, Any], List[str]]:
+        """Parse issue body and validate configuration"""
+        errors = []
+        config = {}
+
+        try:
+            config = self._parse_issue_body(issue)
+            is_valid, validation_errors = self._validate_config(config)
+            if not is_valid:
+                errors.extend(validation_errors)
+        except Exception as e:
+            errors.append(f"Error parsing issue: {str(e)}")
+
+        return config, errors
+
+    def _parse_issue_body(self, issue) -> Dict[str, Any]:
+        """Parse issue body with improved form field extraction"""
         form_data = issue.body
+        config = {}
 
-        # Parse basic repository information
-        config["repository"]["name"] = self._get_form_value(form_data, "repo-name")
-        config["repository"]["visibility"] = self._get_form_value(form_data, "visibility")
-        config["repository"]["description"] = self._get_form_value(form_data, "description")
-
-        # Parse YAML configurations
-        yaml_sections = {
-            "repo-config": "repository",
-            "security-settings": "security",
-            "branch-protection": "rulesets",
-            "custom-properties": "custom_properties",
+        # Define field mappings
+        field_mappings = {
+            "repository": {
+                "name": "repo-name",
+                "visibility": "visibility",
+                "description": "description"
+            },
+            "template": "temp-repo-name"
         }
 
-        for form_id, config_key in yaml_sections.items():
-            yaml_text = self._extract_yaml_from_form(form_data, form_id)
-            if yaml_text:
+        # Extract basic fields
+        for section, fields in field_mappings.items():
+            if isinstance(fields, dict):
+                config[section] = {}
+                for config_key, form_key in fields.items():
+                    value = self._extract_form_field(form_data, form_key)
+                    if value:
+                        config[section][config_key] = value
+            else:
+                value = self._extract_form_field(form_data, fields)
+                if value:
+                    config[section] = value
+
+        # Extract and parse YAML sections
+        yaml_sections = [
+            "repo-config",
+            "security-settings",
+            "branch-protection",
+            "custom-properties"
+        ]
+
+        for section in yaml_sections:
+            yaml_content = self._extract_yaml_section(form_data, section)
+            if yaml_content:
                 try:
-                    parsed_yaml = yaml.safe_load(yaml_text)
-                    if config_key in parsed_yaml:
-                        config[config_key].update(parsed_yaml[config_key])
+                    parsed_yaml = yaml.safe_load(yaml_content)
+                    self._merge_configs(config, parsed_yaml)
                 except yaml.YAMLError as e:
-                    raise ValueError(f"Invalid YAML in {form_id}: {str(e)}")
+                    self.logger.error(f"Error parsing YAML in {section}: {str(e)}")
+                    raise ValueError(f"Invalid YAML in {section}: {str(e)}")
 
         return config
 
-    def _get_form_value(self, form_data: str, field_id: str) -> str:
-        """Extract value from a form field"""
-        pattern = f"### {field_id}\n\n(.*?)(?=###|$)"
-        match = re.search(pattern, form_data, re.DOTALL)
-        return match.group(1).strip() if match else ""
+    def _extract_form_field(self, form_data: str, field_id: str) -> Optional[str]:
+        """Extract value from form field with improved parsing"""
+        patterns = [
+            f"### {field_id}\\s*\\n\\s*([^#\\n]+)",  # Basic field
+            f"### {field_id}\\s*\\n\\s*```[^\\n]*\\n(.+?)```",  # Code block
+            f"### {field_id}\\s*\\n\\s*- \\[[ x]\\] (.+)"  # Checkbox
+        ]
 
-    def _extract_yaml_from_form(self, form_data: str, field_id: str) -> Optional[str]:
-        """Extract YAML content from a form field"""
-        yaml_pattern = f"### {field_id}.*?```yaml\n(.*?)```"
-        match = re.search(yaml_pattern, form_data, re.DOTALL)
+        for pattern in patterns:
+            match = re.search(pattern, form_data, re.DOTALL | re.MULTILINE)
+            if match:
+                return match.group(1).strip()
+
+        return None
+
+    def _extract_yaml_section(self, form_data: str, section_id: str) -> Optional[str]:
+        """Extract YAML content from form section"""
+        pattern = f"### {section_id}\\s*\\n\\s*```ya?ml\\s*\\n(.+?)```"
+        match = re.search(pattern, form_data, re.DOTALL | re.MULTILINE)
         return match.group(1) if match else None
 
-    def validate_config(self, config: Dict[str, Any]) -> Tuple[bool, List[str]]:
-        """Validate repository configuration against allowed values"""
+    def _merge_configs(self, target: Dict[str, Any], source: Dict[str, Any]) -> None:
+        """Merge configurations recursively"""
+        for key, value in source.items():
+            if isinstance(value, dict) and key in target:
+                if not isinstance(target[key], dict):
+                    target[key] = {}
+                self._merge_configs(target[key], value)
+            elif value is not None:
+                target[key] = value
+
+    def _validate_config(self, config: Dict[str, Any]) -> Tuple[bool, List[str]]:
+        """Validate repository configuration"""
         errors = []
 
-        # Basic validation rules
-        if "repository" in config:
+        # Required fields
+        if "repository" not in config:
+            errors.append("Missing repository configuration section")
+        else:
             repo_config = config["repository"]
+            
+            # Validate repository name
+            if "name" not in repo_config:
+                errors.append("Repository name is required")
+            elif not re.match(r"^[a-zA-Z0-9_.-]+$", repo_config["name"]):
+                errors.append("Invalid repository name format")
 
             # Validate visibility
             if "visibility" in repo_config:
                 if repo_config["visibility"] not in ["internal", "private"]:
                     errors.append("Visibility must be either 'internal' or 'private'")
 
-            # Validate branch name
-            if "default_branch" in repo_config:
-                if not re.match(r"^[a-zA-Z0-9_-]+$", repo_config["default_branch"]):
-                    errors.append("Invalid default branch name")
+        # Validate YAML sections
+        if "rulesets" in config:
+            if not isinstance(config["rulesets"], list):
+                errors.append("Rulesets must be a list")
+
+        if "custom_properties" in config:
+            if not isinstance(config["custom_properties"], list):
+                errors.append("Custom properties must be a list")
 
         return len(errors) == 0, errors
 
-    def handle_creation_issue(self, issue_number: int) -> None:
-        """Handle repository creation issue"""
+    def _check_repository_exists(self, repo_name: str) -> bool:
+        """Check if repository exists"""
         try:
-            issue = self.repo.get_issue(issue_number)
-            self._comment_on_issue(issue, "Processing repository creation request...")
+            self.org.get_repo(repo_name)
+            return True
+        except GithubException:
+            return False
 
-            # Parse and validate configuration
-            config = self.parse_issue_body(issue)
-            logging.info(f"Parsed configuration: {config}")
+    def _handle_creation(self, issue, config: Dict[str, Any]) -> None:
+        """Handle repository creation"""
+        try:
+            repo_name = config["repository"]["name"]
+            template_repo = config.get("template")
 
-            # Validate configuration
-            is_valid, errors = self.validate_config(config)
-            if not is_valid:
-                error_msg = "Configuration validation failed:\n" + "\n".join(errors)
-                logging.error(error_msg)
-                self._comment_on_issue(issue, error_msg)
-                return
+            self.sync_manager.create_repository(
+                repo_name=repo_name,
+                config=config,
+                template_repo_name=template_repo
+            )
 
-            # Create repository
-            logging.info(f"Creating repository with config: {config['repository']}")
-            repo = self._create_repository(config)
-
-            if not repo:
-                error_msg = "Failed to create repository"
-                logging.error(error_msg)
-                self._comment_on_issue(issue, error_msg)
-                return
-
-            # Apply configuration
-            logging.info("Applying repository configuration")
-            changes = self._apply_repository_config(repo, config)
-
-            # Close issue with success message
             success_msg = (
-                f"Repository {repo.name} created successfully\n"
-                f"Repository URL: {repo.html_url}\n"
-                f"Changes applied: \n```yaml\n{yaml.dump(changes)}\n```"
+                f"✅ Repository {repo_name} created successfully!\n\n"
+                f"Repository URL: https://github.com/{self.org.login}/{repo_name}\n\n"
+                "The following configurations have been applied:\n"
+                f"```yaml\n{yaml.dump(config, default_flow_style=False)}\n```"
             )
-            self._comment_on_issue(issue, success_msg)
-            issue.edit(state="closed")
+
+            self._close_issue_with_success(issue, success_msg)
 
         except Exception as e:
-            error_msg = f"Error processing repository creation: {str(e)}"
-            logging.error(error_msg)
-            self._comment_on_issue(issue, error_msg)
-            raise
-
-    def handle_update_issue(self, issue_number: int) -> None:
-        """Handle repository update issue"""
-        try:
-            issue = self.repo.get_issue(issue_number)
-            config = self.parse_issue_body(issue.body)
-
-            # Validate configuration
-            is_valid, errors = self.validate_config(config)
-            if not is_valid:
-                self._comment_on_issue(issue, "Configuration validation failed:\n" + "\n".join(errors))
-                return
-
-            # Get repository
-            repo = self.org.get_repo(config["repository"]["name"])
-
-            # Apply updates
-            changes = self._apply_repository_config(repo, config)
-
-            # Close issue with success message
-            self._comment_on_issue(issue, f"Repository {repo.name} updated successfully:\n{yaml.dump(changes)}")
-            issue.edit(state="closed")
-
-        except Exception as e:
-            self._comment_on_issue(issue, f"Error processing repository update: {str(e)}")
-
-    def _create_repository(self, config: Dict[str, Any]):
-        """Create new repository with basic settings"""
-        repo_config = config["repository"]
-        try:
-            logging.info(f"Creating repository: {repo_config['name']}")
-            return self.org.create_repo(
-                name=repo_config["name"],
-                description=repo_config.get("description", ""),
-                private=(repo_config["visibility"] == "private"),
-                internal=(repo_config["visibility"] == "internal"),
-                auto_init=True,
+            error_msg = (
+                f"❌ Failed to create repository: {str(e)}\n\n"
+                "Please check the following:\n"
+                "- Repository name is valid and available\n"
+                "- Template repository exists (if specified)\n"
+                "- All configuration values are valid"
             )
-        except GithubException as e:
-            logging.error(f"Failed to create repository: {str(e)}")
-            raise
+            self._handle_error(issue, error_msg)
 
-    def _apply_repository_config(self, repo, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Apply configuration to repository and return changes made"""
-        changes = {}
-
+    def _handle_update(self, issue, config: Dict[str, Any]) -> None:
+        """Handle repository update"""
         try:
-            # Apply repository settings
-            repo_config = config.get("repository", {})
-            self._update_repo_settings(repo, repo_config, changes)
+            repo_name = config["repository"]["name"]
+            changes = self.sync_manager.update_repository(repo_name, config)
 
-            # Apply branch protection
-            if "rulesets" in config:
-                self._update_branch_protection(repo, config["rulesets"], changes)
+            if changes:
+                success_msg = (
+                    f"✅ Repository {repo_name} updated successfully!\n\n"
+                    "The following changes were applied:\n"
+                    f"```yaml\n{yaml.dump(changes, default_flow_style=False)}\n```"
+                )
+            else:
+                success_msg = (
+                    f"ℹ️ Repository {repo_name} is already up to date.\n"
+                    "No changes were necessary."
+                )
 
-            # Apply custom properties
-            if "custom_properties" in config:
-                self._update_custom_properties(repo, config["custom_properties"], changes)
+            self._close_issue_with_success(issue, success_msg)
 
         except Exception as e:
-            raise Exception(f"Error applying configuration: {str(e)}")
+            error_msg = (
+                f"❌ Failed to update repository: {str(e)}\n\n"
+                "Please check the following:\n"
+                "- All configuration values are valid\n"
+                "- You have necessary permissions\n"
+                "- The repository exists and is accessible"
+            )
+            self._handle_error(issue, error_msg)
 
-        return changes
+    def _handle_validation_errors(self, issue, errors: List[str]) -> None:
+        """Handle validation errors"""
+        error_msg = (
+            "❌ Invalid repository configuration\n\n"
+            "Please fix the following issues:\n"
+        )
+        for error in errors:
+            error_msg += f"- {error}\n"
 
-    def _update_repo_settings(self, repo, config: Dict[str, Any], changes: Dict[str, Any]) -> None:
-        """Update repository settings"""
-        current_settings = {
-            "name": repo.name,
-            "visibility": "private" if repo.private else "internal",
-            "has_issues": repo.has_issues,
-            "has_wiki": repo.has_wiki,
-            "has_projects": repo.has_projects,
-            "default_branch": repo.default_branch,
-        }
+        error_msg += "\nPlease update the issue with the correct configuration and try again."
+        self._comment_on_issue(issue, error_msg)
+        self._add_label_to_issue(issue, "invalid-config")
 
-        new_settings = {}
-        for key, value in config.items():
-            if key in current_settings and current_settings[key] != value:
-                new_settings[key] = value
+    def _handle_error(self, issue, error_msg: str) -> None:
+        """Handle general errors"""
+        self._comment_on_issue(issue, error_msg)
+        self._add_label_to_issue(issue, "failed")
 
-        if new_settings:
-            repo.edit(**new_settings)
-            changes["settings"] = new_settings
-
-    def _update_branch_protection(self, repo, rulesets: List[Dict[str, Any]], changes: Dict[str, Any]) -> None:
-        """Update branch protection rules"""
-        # Implementation for updating branch protection rules
-        pass
-
-    def _update_custom_properties(self, repo, properties: List[Dict[str, Any]], changes: Dict[str, Any]) -> None:
-        """Update custom properties"""
-        # Implementation for updating custom properties
-        pass
+    def _close_issue_with_success(self, issue, message: str) -> None:
+        """Close issue with success message"""
+        self._comment_on_issue(issue, message)
+        self._add_label_to_issue(issue, "completed")
+        issue.edit(state="closed")
 
     def _comment_on_issue(self, issue, message: str) -> None:
         """Add comment to issue"""
-        issue.create_comment(message)
+        try:
+            issue.create_comment(message)
+        except Exception as e:
+            self.logger.error(f"Error commenting on issue: {str(e)}")
+
+    def _add_label_to_issue(self, issue, label: str) -> None:
+        """Add label to issue"""
+        try:
+            issue.add_to_labels(label)
+        except Exception as e:
+            self.logger.error(f"Error adding label to issue: {str(e)}")

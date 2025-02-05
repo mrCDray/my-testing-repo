@@ -1,12 +1,12 @@
-name: Repository Issue Handler
+name: Repository Sync
 on:
-  issues:
-    types: [opened, edited, reopened]
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight
+  workflow_dispatch:  # Allow manual trigger
 
 jobs:
-  handle-repository-issue:
+  sync-repositories:
     runs-on: ubuntu-latest
-    if: contains(github.event.issue.labels.*.name, 'repo-request')
     environment: cloud-platform
     
     steps:
@@ -29,17 +29,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyyaml PyGithub
           
-      - name: Process Repository Issue
+      - name: Sync Repositories
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           ORG_NAME: ${{ github.repository_owner }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          # Add logging to debug the environment
-          echo "Processing issue #${ISSUE_NUMBER}"
-          echo "Organization: ${ORG_NAME}"
-          echo "Repository: ${GITHUB_REPOSITORY}"
-          
-          # Execute the script
-          python .github/scripts/process_repo_issue.py
+          python .github/scripts/sync_repositories.py
