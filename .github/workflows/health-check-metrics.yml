@@ -10,6 +10,8 @@ on:
     paths:
       - 'repo_health_config.yaml'  # Run when config changes
 
+permissions: write-all
+
 jobs:
   health-check:
     runs-on: ubuntu-latest
