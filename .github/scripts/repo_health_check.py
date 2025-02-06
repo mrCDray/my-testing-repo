@@ -2,11 +2,11 @@
 import os
 import sys
 import argparse
-import pandas as pd
 from datetime import datetime
 import concurrent.futures
-from tqdm import tqdm
 from typing import Dict
+import pandas as pd
+from tqdm import tqdm
 import yaml
 from github import Github
 
@@ -35,7 +35,7 @@ class ConfigManager:
         if not os.path.exists(self.config_path):
             self.create_default_config()
 
-        with open(self.config_path, "r") as f:
+        with open(self.config_path, mode="r", encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     def create_default_config(self):
@@ -80,7 +80,7 @@ class ConfigManager:
             },
         }
 
-        with open(self.config_path, "w") as f:
+        with open(self.config_path, mode="w", encoding="utf-8") as f:
             yaml.safe_dump(default_config, f, sort_keys=False)
 
 
@@ -134,9 +134,9 @@ class GitHubOrgHealthCheck:
                     for content in github_contents:
                         if content.name.upper() == "PULL_REQUEST_TEMPLATE.MD":
                             metrics["required_files"]["pull_request_template.md"] = True
-                except:
+                except ImportError:
                     pass
-            except:
+            except ImportError:
                 pass
 
             # Calculate required files score with weights
@@ -155,13 +155,13 @@ class GitHubOrgHealthCheck:
             metrics["required_files_score"] = (weighted_sum / total_weight * 100) if total_weight > 0 else 0
 
             # Check security features
-            security_config = self.config["security_requirements"]
+            # self.config["security_requirements"]
             try:
                 security_info = repo.get_security_and_analysis()
                 metrics["security_scanning"] = (
                     security_info.advanced_security.status == "enabled" if security_info.advanced_security else False
                 )
-            except:
+            except ImportError:
                 pass
 
             # Check Dependabot with configured weights
@@ -173,7 +173,7 @@ class GitHubOrgHealthCheck:
                         severity = alert.security_advisory.severity.lower()
                         if severity in metrics["dependabot_alerts"]:
                             metrics["dependabot_alerts"][severity] += 1
-            except:
+            except ImportError:
                 pass
 
             # Calculate alert score using configured weights
@@ -252,19 +252,19 @@ class GitHubOrgHealthCheck:
         reports = []
 
         # Generate configured report formats
-        for format in self.config["reporting"]["export_formats"]:
-            if format == "csv":
+        for format_type in self.config["reporting"]["export_formats"]:
+            if format_type == "csv":
                 csv_path = os.path.join(
                     output_dir, f"{self.org.login}_repo_health_{datetime.now().strftime('%Y%m%d')}.csv"
                 )
                 df.to_csv(csv_path, index=False)
                 reports.append(csv_path)
 
-            elif format == "markdown":
+            elif format_type == "markdown":
                 summary_path = os.path.join(
                     output_dir, f"{self.org.login}_summary_{datetime.now().strftime('%Y%m%d')}.md"
                 )
-                with open(summary_path, "w") as f:
+                with open(summary_path, mode="w", encoding="utf-8") as f:
                     f.write(f"# Repository Health Summary for {self.org.login}\n\n")
                     f.write(f"Scan Date: {summary['scan_date']}\n\n")
 
