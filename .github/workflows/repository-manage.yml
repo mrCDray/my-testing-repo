@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       repository_name:
-        description: 'Repository Name (optional, uses default if not specified)'
+        description: 'Repository Name (optional, uses config or changed file path if not specified)'
         required: false
         type: string
   push:
@@ -22,6 +22,8 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
       - uses: actions/create-github-app-token@v1
         id: app-token
@@ -44,7 +46,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GITHUB_ORGANIZATION: ${{ github.repository_owner }}
-          REPOSITORY_NAME: ${{ github.event.inputs.repository_name || '' }}
+          REPOSITORY_NAME: ${{ inputs.repository_name || '' }}
         run: python .github/scripts/repository_manage.py
 
       - name: Commit and Push Changes

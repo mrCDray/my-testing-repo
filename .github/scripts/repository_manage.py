@@ -16,32 +16,50 @@ class RepositoryConfigManager:
         """
         self.g = Github(github_token)
         self.org = self.g.get_organization(organization)
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+        logging.basicConfig(level=logging.INFO, 
+                            format="%(asctime)s - %(levelname)s - %(message)s",
+                            handlers=[
+                                logging.StreamHandler(sys.stdout),
+                                logging.FileHandler('repository_manage.log')
+                            ])
         self.logger = logging.getLogger(__name__)
 
-    def load_default_config(self, config_path="default_repository.yml"):
+    def load_repository_config(self, config_path):
         """
-        Load the default repository configuration.
+        Load repository configuration, with fallback to default configuration.
 
-        :param config_path: Path to the default repository configuration file
+        :param config_path: Path to the repository configuration file
         :return: Parsed configuration dictionary
         """
         try:
-            with open(config_path, "r") as file:
-                return yaml.safe_load(file)["repository"]
-        except FileNotFoundError:
-            self.logger.error(f"Default configuration file not found at {config_path}")
-            sys.exit(1)
-        except yaml.YAMLError as e:
-            self.logger.error(f"Error parsing YAML file: {e}")
-            sys.exit(1)
+            # First, try to load the specific repository configuration
+            if os.path.exists(config_path):
+                with open(config_path, "r") as file:
+                    config = yaml.safe_load(file)
+                    # Extract repository configuration, prioritizing the 'name' in the config
+                    repo_config = config.get("repository", {})
+                    return repo_config
 
-    def create_or_update_repository_config(self, repo_name, default_config, workspace_path):
+            # If no specific config, load default configuration
+            default_config_path = "default_repository.yml"
+            if os.path.exists(default_config_path):
+                with open(default_config_path, "r") as file:
+                    return yaml.safe_load(file).get("repository", {})
+            
+            # If no configuration found at all
+            self.logger.warning("No configuration found. Using minimal defaults.")
+            return {}
+
+        except (FileNotFoundError, yaml.YAMLError) as e:
+            self.logger.error(f"Error loading configuration: {e}")
+            return {}
+
+    def create_or_update_repository_config(self, repo_name, config, workspace_path):
         """
         Create or update repository configuration in the centralized repository.
 
         :param repo_name: Name of the repository
-        :param default_config: Default configuration dictionary
+        :param config: Configuration dictionary
         :param workspace_path: Path to the GitHub Actions workspace
         """
         try:
@@ -57,7 +75,7 @@ class RepositoryConfigManager:
             config_file_path = os.path.join(repo_config_dir, "repository.yml")
 
             # Prepare configuration dictionary
-            config_to_save = {"repository": default_config}
+            config_to_save = {"repository": config}
 
             # Write the configuration file
             with open(config_file_path, "w") as file:
@@ -68,16 +86,20 @@ class RepositoryConfigManager:
 
         except Exception as e:
             self.logger.error(f"Error creating repository configuration for {repo_name}: {e}")
-            sys.exit(1)
+            raise
 
-    def create_or_update_github_repository(self, repo_name, default_config):
+    def create_or_update_github_repository(self, repo_name, config):
         """
         Create a new repository or update an existing one based on configuration.
 
         :param repo_name: Name of the repository
-        :param default_config: Default configuration dictionary
+        :param config: Configuration dictionary
+        :return: Repository object
         """
         try:
+            # Validate and set a default repository name
+            repo_name = repo_name or config.get('name', 'default-repository')
+
             # Check if repository exists
             try:
                 repo = self.org.get_repo(repo_name)
@@ -87,20 +109,20 @@ class RepositoryConfigManager:
                 # Repository doesn't exist, create it
                 repo = self.org.create_repo(
                     name=repo_name,
-                    private=default_config.get("visibility", "private") == "private",
+                    private=config.get("visibility", "private") == "private",
                     auto_init=True,  # Initialize with README
                 )
                 self.logger.info(f"Created new repository {repo_name}")
                 update_mode = False
 
             # Update repository settings
-            self._update_repo_settings(repo, default_config)
+            self._update_repo_settings(repo, config)
 
             return repo
 
         except Exception as e:
             self.logger.error(f"Error processing repository {repo_name}: {e}")
-            sys.exit(1)
+            raise
 
     def _update_repo_settings(self, repo: Repository, config: dict):
         """
@@ -109,7 +131,7 @@ class RepositoryConfigManager:
         :param repo: GitHub Repository object
         :param config: Configuration dictionary
         """
-        # Mapping of configuration keys to repository edit parameters
+        # Comprehensive setting map
         setting_map = {
             "has_issues": "has_issues",
             "has_projects": "has_projects",
@@ -135,13 +157,14 @@ class RepositoryConfigManager:
             edit_params.pop("default_branch", None)
 
         # Update security settings
-        if config.get("security", {}).get("enableVulnerabilityAlerts", False):
+        security_config = config.get("security", {})
+        if security_config.get("enableVulnerabilityAlerts", False):
             try:
                 repo.enable_vulnerability_alert()
             except Exception as e:
                 self.logger.warning(f"Could not enable vulnerability alerts: {e}")
 
-        if config.get("security", {}).get("enableAutomatedSecurityFixes", False):
+        if security_config.get("enableAutomatedSecurityFixes", False):
             try:
                 repo.enable_automated_security_fixes()
             except Exception as e:
@@ -157,39 +180,75 @@ class RepositoryConfigManager:
             repo.edit(**edit_params)
             self.logger.info(f"Updated repository settings for {repo.name}")
         except GithubException as e:
-            # Log the specific error, but don't exit
+            # Log the specific error, but continue
             self.logger.warning(f"Could not update all repository settings: {e}")
 
 
 def main():
-    # Get environment variables
-    GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-    GITHUB_ORGANIZATION = os.environ.get("GITHUB_ORGANIZATION")
-    GITHUB_WORKSPACE = os.environ.get("GITHUB_WORKSPACE", os.getcwd())
-    REPOSITORY_NAME = os.environ.get("REPOSITORY_NAME")
+    # Enhanced environment variable handling
+    def get_env_var(var_name, default=None, required=True):
+        value = os.environ.get(var_name, default)
+        if required and not value:
+            raise ValueError(f"Missing required environment variable: {var_name}")
+        return value
 
-    # Validate required environment variables
-    if not all([GITHUB_TOKEN, GITHUB_ORGANIZATION, REPOSITORY_NAME]):
-        logging.error("Missing required environment variables")
+    try:
+        # Retrieve environment variables with enhanced error handling
+        GITHUB_TOKEN = get_env_var("GITHUB_TOKEN")
+        GITHUB_ORGANIZATION = get_env_var("GITHUB_ORGANIZATION")
+        GITHUB_WORKSPACE = get_env_var("GITHUB_WORKSPACE", default=os.getcwd(), required=False)
+        
+        # Determine repository name
+        REPOSITORY_NAME = os.environ.get("REPOSITORY_NAME") or \
+                          os.environ.get("INPUT_REPOSITORY_NAME")
+
+        # If no repository name is provided, try to determine from changed files
+        if not REPOSITORY_NAME:
+            # Check GitHub event path for push event details
+            github_event_path = os.environ.get("GITHUB_EVENT_PATH")
+            if github_event_path and os.path.exists(github_event_path):
+                with open(github_event_path, 'r') as f:
+                    import json
+                    event_data = json.load(f)
+                    
+                    # Look for repository configuration files in the changed files
+                    changed_files = event_data.get('push', {}).get('files', [])
+                    for file in changed_files:
+                        file_path = file.get('filename', '')
+                        if file_path.startswith('repositories/') and file_path.endswith('/repository.yml'):
+                            # Extract repository name from path
+                            REPOSITORY_NAME = file_path.split('/')[1]
+                            break
+
+        # Initialize manager
+        manager = RepositoryConfigManager(GITHUB_TOKEN, GITHUB_ORGANIZATION)
+
+        # Determine configuration file path
+        if REPOSITORY_NAME:
+            config_path = os.path.join(GITHUB_WORKSPACE, "repositories", REPOSITORY_NAME, "repository.yml")
+        else:
+            config_path = os.path.join(GITHUB_WORKSPACE, "default_repository.yml")
+
+        # Load configuration
+        config = manager.load_repository_config(config_path)
+
+        # Ensure repository name is set
+        repo_name = REPOSITORY_NAME or config.get('name', 'default-repository')
+
+        # Create/update repository configuration
+        config_file_path = manager.create_or_update_repository_config(
+            repo_name, config, GITHUB_WORKSPACE
+        )
+
+        # Create or update the GitHub repository
+        manager.create_or_update_github_repository(repo_name, config)
+
+        # Log the configuration file path
+        print(f"Repository configuration created/updated at: {config_file_path}")
+
+    except Exception as e:
+        logging.error(f"Fatal error: {e}")
         sys.exit(1)
-
-    # Initialize manager
-    manager = RepositoryConfigManager(GITHUB_TOKEN, GITHUB_ORGANIZATION)
-
-    # Load default configuration
-    default_config = manager.load_default_config()
-
-    # Override repository name if provided in environment
-    repo_name = REPOSITORY_NAME or default_config["name"]
-
-    # Create/update repository configuration in the centralized repo
-    config_file_path = manager.create_or_update_repository_config(repo_name, default_config, GITHUB_WORKSPACE)
-
-    # Create or update the GitHub repository
-    manager.create_or_update_github_repository(repo_name, default_config)
-
-    # Log the configuration file path for potential further use
-    print(f"Repository configuration created at: {config_file_path}")
 
 
 if __name__ == "__main__":
