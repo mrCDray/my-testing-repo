@@ -2,7 +2,7 @@ import os
 import yaml
 import logging
 from typing import Dict, Tuple, Any
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 from github import Github
 
