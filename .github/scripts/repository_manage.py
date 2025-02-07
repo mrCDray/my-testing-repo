@@ -212,6 +212,8 @@ class RepositoryConfigManager:
         except GithubException as e:
             # Log the specific error, but continue
             self.logger.warning(f"Could not update all repository settings: {e}")
+
+
 def main():
     # Enhanced environment variable handling (same as previous implementation)
     def get_env_var(var_name, default=None, required=True):
@@ -227,10 +229,7 @@ def main():
         GITHUB_WORKSPACE = get_env_var("GITHUB_WORKSPACE", default=os.getcwd(), required=False)
 
         # Determine repository name with advanced logic
-        REPOSITORY_NAME = (
-            os.environ.get("REPOSITORY_NAME") or 
-            os.environ.get("INPUT_REPOSITORY_NAME")
-        )
+        REPOSITORY_NAME = os.environ.get("REPOSITORY_NAME") or os.environ.get("INPUT_REPOSITORY_NAME")
 
         # If no repository name is provided, try to determine from changed files
         if not REPOSITORY_NAME:
