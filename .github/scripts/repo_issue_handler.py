@@ -1,216 +1,228 @@
-import os
-import sys
+import re
 import yaml
 import logging
-from typing import Dict, Tuple, List
-from datetime import datetime
-import pandas as pd
+from typing import Dict, Any, Optional, List, Tuple
 from github import Github
+from github import Github, GithubException
 
 
-class RepositoryHealthChecker:
-    def __init__(self, token: str, org_name: str, config_path: str = None):
-        """
-        Initialize the repository health checker with comprehensive error handling
-
-        :param token: GitHub API token
-        :param org_name: GitHub organization name
-        :param config_path: Path to the health check configuration file
-        """
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+class RepoIssueHandler:
+    def __init__(self, token: str, org_name: str, repo_name: str):
+        self.github = Github(token)
+        self.org = self.github.get_organization(org_name)
+        self.default_config = self._load_default_config()
+        self.repo = self.org.get_repo(repo_name)
         self.logger = logging.getLogger(__name__)
 
-        # Determine config path
-        if config_path is None:
-            # Search for config in .github directory
-            potential_paths = [
-                os.path.join(".github", "repo_health_config.yml"),
-                os.path.join(".github", "repo_health_config.yaml"),
-                "repo_health_config.yml",
-                "repo_health_config.yaml",
-            ]
+    def _load_default_config(self) -> Dict[str, Any]:
+        """Load default repository configuration"""
+        with open("default_repository.yml", "r") as f:
+            return yaml.safe_load(f)
 
-            for path in potential_paths:
-                if os.path.exists(path):
-                    config_path = path
-                    break
+    def parse_issue_body(self, issue) -> Dict[str, Any]:
+        """Parse issue body from the form-based template"""
+        config = {"repository": {}, "security": {}, "rulesets": [], "custom_properties": []}
 
-            if not config_path:
-                self.logger.warning("No configuration file found. Using default settings.")
-                config_path = os.path.join(".github", "repo_health_config.yml")
+        # Get form data from issue body
+        form_data = issue.body
 
-        try:
-            with open(config_path, mode="r", encoding="utf-8") as config_file:
-                self.config = yaml.safe_load(config_file)
-            self.logger.info(f"Loaded configuration from {config_path}")
-        except FileNotFoundError:
-            self.logger.warning(f"Config file {config_path} not found. Using default config.")
-            self.config = {}
-        except Exception as e:
-            self.logger.error(f"Error loading config file: {e}")
-            self.config = {}
+        # Parse basic repository information
+        config["repository"]["name"] = self._get_form_value(form_data, "repo-name")
+        config["repository"]["visibility"] = self._get_form_value(form_data, "visibility")
+        config["repository"]["description"] = self._get_form_value(form_data, "description")
 
-        try:
-            self.github = Github(token)
-            self.org = self.github.get_organization(org_name)
-        except Exception as e:
-            self.logger.error(f"Failed to initialize GitHub connection: {e}")
-            raise
-
-    def generate_report(self) -> List[str]:
-        """
-        Generate comprehensive health reports for repositories
-
-        :return: List of report file paths
-        """
-        # Scan organization and get results
-        df, summary = self.scan_organization()
-
-        # Create reports directory if it doesn't exist
-        os.makedirs("reports", exist_ok=True)
-
-        # Generate timestamp for unique report filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # Create summary report
-        summary_path = f"reports/summary_{timestamp}.md"
-        self._generate_summary_report(summary, summary_path)
-
-        # Create detailed repository report
-        detailed_path = f"reports/detailed_{timestamp}.csv"
-        df.to_csv(detailed_path, index=False)
-
-        return [summary_path, detailed_path]
-
-    def _generate_summary_report(self, summary: Dict, path: str):
-        """
-        Generate a markdown summary report
-
-        :param summary: Summary statistics dictionary
-        :param path: File path to save the report
-        """
-        with open(path, mode="w", encoding="utf-8") as f:
-            f.write("# Repository Health Check Summary\n\n")
-            f.write(f"**Total Repositories**: {summary.get('total_repos', 0)}\n")
-            f.write(f"**Archived Repositories**: {summary.get('archived_repos', 0)}\n")
-            f.write(f"**Unhealthy Repositories**: {summary.get('unhealthy_repos', 0)}\n")
-
-            # Add severity levels
-            if summary.get("unhealthy_repos", 0) > 0:
-                f.write("\n## Severity\n")
-                f.write("🔴 High Risk: Immediate action required\n")
-
-    def scan_organization(self) -> Tuple[pd.DataFrame, Dict[str, int]]:
-        """
-        Scan repositories in the organization and generate a health report
-
-        :return: DataFrame with repository details and summary statistics
-        """
-        repo_data = []
-        ignored_repos = self.config.get("global", {}).get("ignore_repos", [])
-
-        for repo in self.org.get_repos():
-            # Skip ignored repositories
-            if repo.name in ignored_repos:
-                continue
-
-            try:
-                # Basic repository health check
-                repo_info = {
-                    "name": repo.name,
-                    "is_archived": repo.archived,
-                    "is_healthy": True,
-                    "description": repo.description or "No description",
-                    "created_at": repo.created_at,
-                    "updated_at": repo.updated_at,
-                }
-
-                # Additional health checks
-                self._check_repository_age(repo, repo_info)
-                self._check_repository_details(repo, repo_info)
-
-                repo_data.append(repo_info)
-
-            except Exception as e:
-                self.logger.error(f"Error processing repository {repo.name}: {e}")
-                # Add minimal information even if checks fail
-                repo_data.append({"name": repo.name, "is_archived": False, "is_healthy": False, "error": str(e)})
-
-        # Create DataFrame with default columns
-        df = pd.DataFrame(
-            repo_data, columns=["name", "is_archived", "is_healthy", "description", "created_at", "updated_at", "error"]
-        )
-
-        # Calculate summary
-        summary = {
-            "total_repos": len(df),
-            "archived_repos": df["is_archived"].sum(),
-            "unhealthy_repos": (~df["is_healthy"]).sum(),
+        # Parse YAML configurations
+        yaml_sections = {
+            "repo-config": "repository",
+            "security-settings": "security",
+            "branch-protection": "rulesets",
+            "custom-properties": "custom_properties",
         }
 
-        return df, summary
+        for form_id, config_key in yaml_sections.items():
+            yaml_text = self._extract_yaml_from_form(form_data, form_id)
+            if yaml_text:
+                try:
+                    parsed_yaml = yaml.safe_load(yaml_text)
+                    if config_key in parsed_yaml:
+                        config[config_key].update(parsed_yaml[config_key])
+                except yaml.YAMLError as e:
+                    raise ValueError(f"Invalid YAML in {form_id}: {str(e)}")
 
-    def _check_repository_age(self, repo, repo_info):
-        """
-        Check repository age and activity
+        return config
 
-        :param repo: GitHub repository object
-        :param repo_info: Dictionary to update with age information
-        """
-        max_age_days = self.config.get("repository_details", {}).get("max_age_days", 365)
+    def _get_form_value(self, form_data: str, field_id: str) -> str:
+        """Extract value from a form field"""
+        pattern = f"### {field_id}\n\n(.*?)(?=###|$)"
+        match = re.search(pattern, form_data, re.DOTALL)
+        return match.group(1).strip() if match else ""
 
+    def _extract_yaml_from_form(self, form_data: str, field_id: str) -> Optional[str]:
+        """Extract YAML content from a form field"""
+        yaml_pattern = f"### {field_id}.*?```yaml\n(.*?)```"
+        match = re.search(yaml_pattern, form_data, re.DOTALL)
+        return match.group(1) if match else None
+
+    def validate_config(self, config: Dict[str, Any]) -> Tuple[bool, List[str]]:
+        """Validate repository configuration against allowed values"""
+        errors = []
+
+        # Basic validation rules
+        if "repository" in config:
+            repo_config = config["repository"]
+
+            # Validate visibility
+            if "visibility" in repo_config:
+                if repo_config["visibility"] not in ["internal", "private"]:
+                    errors.append("Visibility must be either 'internal' or 'private'")
+
+            # Validate branch name
+            if "default_branch" in repo_config:
+                if not re.match(r"^[a-zA-Z0-9_-]+$", repo_config["default_branch"]):
+                    errors.append("Invalid default branch name")
+
+        return len(errors) == 0, errors
+
+    def handle_creation_issue(self, issue_number: int) -> None:
+        """Handle repository creation issue"""
         try:
-            # Use updated_at as a proxy for activity if no commits are found
-            last_activity_date = repo.updated_at
+            issue = self.repo.get_issue(issue_number)
+            self._comment_on_issue(issue, "Processing repository creation request...")
 
-            # Calculate days since last activity
-            days_since_activity = (datetime.now(last_activity_date.tzinfo) - last_activity_date).days
+            # Parse and validate configuration
+            config = self.parse_issue_body(issue)
+            logging.info(f"Parsed configuration: {config}")
 
-            repo_info["days_since_last_activity"] = days_since_activity
+            # Validate configuration
+            is_valid, errors = self.validate_config(config)
+            if not is_valid:
+                error_msg = "Configuration validation failed:\n" + "\n".join(errors)
+                logging.error(error_msg)
+                self._comment_on_issue(issue, error_msg)
+                return
 
-            if days_since_activity > max_age_days:
-                repo_info["is_healthy"] = False
-                repo_info["age_status"] = "Stale"
-            else:
-                repo_info["age_status"] = "Active"
+            # Create repository
+            logging.info(f"Creating repository with config: {config['repository']}")
+            repo = self._create_repository(config)
+
+            if not repo:
+                error_msg = "Failed to create repository"
+                logging.error(error_msg)
+                self._comment_on_issue(issue, error_msg)
+                return
+
+            # Apply configuration
+            logging.info("Applying repository configuration")
+            changes = self._apply_repository_config(repo, config)
+
+            # Close issue with success message
+            success_msg = (
+                f"Repository {repo.name} created successfully\n"
+                f"Repository URL: {repo.html_url}\n"
+                f"Changes applied: \n```yaml\n{yaml.dump(changes)}\n```"
+            )
+            self._comment_on_issue(issue, success_msg)
+            issue.edit(state="closed")
 
         except Exception as e:
-            self.logger.error(f"Age check failed for {repo.name}: {e}")
-            repo_info["is_healthy"] = False
-            repo_info["age_status"] = "Unknown"
+            error_msg = f"Error processing repository creation: {str(e)}"
+            logging.error(error_msg)
+            self._comment_on_issue(issue, error_msg)
+            raise
 
-    def _check_repository_details(self, repo, repo_info):
-        """
-        Check repository details against configuration
+    def handle_update_issue(self, issue_number: int) -> None:
+        """Handle repository update issue"""
+        try:
+            issue = self.repo.get_issue(issue_number)
+            config = self.parse_issue_body(issue.body)
 
-        :param repo: GitHub repository object
-        :param repo_info: Dictionary to update with repository details
-        """
-        required_fields = self.config.get("repository_details", {}).get("required_fields", [])
+            # Validate configuration
+            is_valid, errors = self.validate_config(config)
+            if not is_valid:
+                self._comment_on_issue(issue, "Configuration validation failed:\n" + "\n".join(errors))
+                return
 
-        for field in required_fields:
-            value = getattr(repo, field, None)
-            if not value:
-                repo_info["is_healthy"] = False
-                self.logger.warning(f"Repository {repo.name} missing required field: {field}")
+            # Get repository
+            repo = self.org.get_repo(config["repository"]["name"])
 
+            # Apply updates
+            changes = self._apply_repository_config(repo, config)
 
-def main():
-    github_token = os.environ.get("GITHUB_TOKEN")
-    organization = os.environ.get("ORG_NAME", "mrCDray")
+            # Close issue with success message
+            self._comment_on_issue(issue, f"Repository {repo.name} updated successfully:\n{yaml.dump(changes)}")
+            issue.edit(state="closed")
 
-    try:
-        checker = RepositoryHealthChecker(github_token, organization)
-        report_paths = checker.generate_report()
+        except Exception as e:
+            self._comment_on_issue(issue, f"Error processing repository update: {str(e)}")
 
-        print("Health check reports generated:")
-        for path in report_paths:
-            print(f" - {path}")
+    def _create_repository(self, config: Dict[str, Any]):
+        """Create new repository with basic settings"""
+        repo_config = config["repository"]
+        try:
+            logging.info(f"Creating repository: {repo_config['name']}")
+            return self.org.create_repo(
+                name=repo_config["name"],
+                description=repo_config.get("description", ""),
+                private=(repo_config["visibility"] == "private"),
+                internal=(repo_config["visibility"] == "internal"),
+                auto_init=True,
+            )
+        except GithubException as e:
+            logging.error(f"Failed to create repository: {str(e)}")
+            raise
 
-    except Exception as e:
-        logging.error(f"Health check process failed: {e}")
-        sys.exit(1)
+    def _apply_repository_config(self, repo, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply configuration to repository and return changes made"""
+        changes = {}
 
+        try:
+            # Apply repository settings
+            repo_config = config.get("repository", {})
+            self._update_repo_settings(repo, repo_config, changes)
 
-if __name__ == "__main__":
-    main()
+            # Apply branch protection
+            if "rulesets" in config:
+                self._update_branch_protection(repo, config["rulesets"], changes)
+
+            # Apply custom properties
+            if "custom_properties" in config:
+                self._update_custom_properties(repo, config["custom_properties"], changes)
+
+        except Exception as e:
+            raise Exception(f"Error applying configuration: {str(e)}")
+
+        return changes
+
+    def _update_repo_settings(self, repo, config: Dict[str, Any], changes: Dict[str, Any]) -> None:
+        """Update repository settings"""
+        current_settings = {
+            "name": repo.name,
+            "visibility": "private" if repo.private else "internal",
+            "has_issues": repo.has_issues,
+            "has_wiki": repo.has_wiki,
+            "has_projects": repo.has_projects,
+            "default_branch": repo.default_branch,
+        }
+
+        new_settings = {}
+        for key, value in config.items():
+            if key in current_settings and current_settings[key] != value:
+                new_settings[key] = value
+
+        if new_settings:
+            repo.edit(**new_settings)
+            changes["settings"] = new_settings
+
+    def _update_branch_protection(self, repo, rulesets: List[Dict[str, Any]], changes: Dict[str, Any]) -> None:
+        """Update branch protection rules"""
+        # Implementation for updating branch protection rules
+        pass
+
+    def _update_custom_properties(self, repo, properties: List[Dict[str, Any]], changes: Dict[str, Any]) -> None:
+        """Update custom properties"""
+        # Implementation for updating custom properties
+        pass
+
+    def _comment_on_issue(self, issue, message: str) -> None:
+        """Add comment to issue"""
+        issue.create_comment(message)
