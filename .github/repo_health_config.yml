@@ -1,0 +1,69 @@
+---
+# Repository Health Check Configuration
+# Global settings
+global:
+  ignore_repos: 
+    - my-testing-repo  # List of repositories to skip
+    - test-repo-ignore
+
+# Scanning configuration
+scan:
+  # Which checks to perform
+  checks:
+    - repository_details
+    - security_analysis
+    - branch_protection
+    - collaborators
+    - workflow_status
+
+# Specific check configurations
+repository_details:
+  required_fields:
+    - description
+    - homepage
+  check_archived: true
+  max_age_days: 90  # Repositories with no commits in 90 days are considered stale
+  age_check_severity:
+    warning_threshold: 60   # Warn at 60 days
+    critical_threshold: 120 # Critically stale at 120 days
+
+security_analysis:
+  required_features:
+    - vulnerability_alerts
+    - dependency_graph
+    - secret_scanning
+
+# Branch Protection Configuration
+branch_protection:
+  main:
+    required_rules:
+      - pull_request_reviews:
+          required_approving_review_count: 1
+      - status_checks:
+          contexts:
+            - ci/build
+            - security/scan
+      - require_up_to_date_branch: true
+      - enforce_admins: true
+      - restrict_pushes:
+          allow_pushers:
+            - maintainers
+  
+  # Optional: Add protection rules for other branches
+  develop:
+    required_rules:
+      - pull_request_reviews:
+          required_approving_review_count: 1
+      - status_checks:
+          contexts:
+            - ci/build
+
+collaborators:
+  min_collaborators: 1
+  max_collaborators: 5
+
+workflow_status:
+  required_workflows:
+    - ci.yml
+    - security-scan.yml
+  max_failed_runs: 3
