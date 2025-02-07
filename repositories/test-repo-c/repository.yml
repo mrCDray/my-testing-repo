@@ -1,0 +1,54 @@
+repository:
+  allow_auto_merge: false
+  allow_merge_commit: true
+  allow_rebase_merge: true
+  allow_squash_merge: true
+  allow_update_branch: true
+  archived: false
+  custom_properties: null
+  default_branch: main
+  delete_branch_on_merge: true
+  has_issues: true
+  has_projects: true
+  has_wiki: true
+  name:
+  - repository-name
+  rulesets:
+  - conditions:
+      ref_name:
+        exclude:
+        - refs/heads/oldmaster
+        include:
+        - ~DEFAULT_BRANCH
+        - develop
+    enforcement: evaluate
+    name: ruleset-test
+    rules:
+    - type: creation
+    - parameters:
+        update_allows_fetch_and_merge: true
+      type: update
+    - type: deletion
+    - type: required_linear_history
+    - type: required_signatures
+    - parameters:
+        dismiss_stale_reviews_on_push: true
+        require_code_owner_review: true
+        require_last_push_approval: true
+        required_approving_review_count: 2
+        required_review_thread_resolution: true
+      type: pull_request
+    - parameters:
+        required_status_checks:
+        - context:
+          - CodeQL
+        - context:
+          - CodeQL
+        strict_required_status_checks_policy: true
+      type: required_status_checks
+    target: branch
+  security:
+    enableAutomatedSecurityFixes: true
+    enableVulnerabilityAlerts: true
+  topics: []
+  visibility: private
