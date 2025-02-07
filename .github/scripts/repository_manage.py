@@ -23,11 +23,12 @@ class RepositoryConfigManager:
         )
         self.logger = logging.getLogger(__name__)
 
-    def load_repository_config(self, config_path):
+    def load_repository_config(self, config_path, repository_name=None):
         """
-        Load repository configuration, with fallback to default configuration.
+        Load repository configuration, with advanced name handling.
 
         :param config_path: Path to the repository configuration file
+        :param repository_name: Optional repository name to override config
         :return: Tuple of (parsed configuration dictionary, repository name)
         """
         try:
@@ -35,11 +36,19 @@ class RepositoryConfigManager:
             if os.path.exists(config_path):
                 with open(config_path, "r") as file:
                     config = yaml.safe_load(file)
-                    # Extract repository configuration, prioritizing the 'name' in the config
                     repo_config = config.get("repository", {})
 
-                    # Ensure name is a string, use default if not
-                    repo_name = str(repo_config.get("name", "default-repository"))
+                    # Prioritize passed repository name, then config name, then default
+                    if repository_name:
+                        repo_name = str(repository_name)
+                    elif repo_config.get("name") and repo_config["name"] != "[repository-name]":
+                        repo_name = str(repo_config["name"])
+                    else:
+                        repo_name = "default-repository"
+
+                    # Replace placeholder name if needed
+                    if repo_config.get("name") == "[repository-name]":
+                        repo_config["name"] = repo_name
 
                     return repo_config, repo_name
 
@@ -50,18 +59,24 @@ class RepositoryConfigManager:
                     config = yaml.safe_load(file)
                     repo_config = config.get("repository", {})
 
-                    # Ensure name is a string, use default if not
-                    repo_name = str(repo_config.get("name", "default-repository"))
+                    # Use passed name or default
+                    repo_name = str(repository_name or repo_config.get("name", "default-repository"))
+
+                    # Replace placeholder name
+                    if repo_config.get("name") == "[repository-name]":
+                        repo_config["name"] = repo_name
 
                     return repo_config, repo_name
 
             # If no configuration found at all
             self.logger.warning("No configuration found. Using minimal defaults.")
-            return {}, "default-repository"
+            repo_name = str(repository_name or "default-repository")
+            return {"name": repo_name}, repo_name
 
         except (FileNotFoundError, yaml.YAMLError) as e:
             self.logger.error(f"Error loading configuration: {e}")
-            return {}, "default-repository"
+            repo_name = str(repository_name or "default-repository")
+            return {"name": repo_name}, repo_name
 
     def create_or_update_repository_config(self, repo_name, config, workspace_path):
         """
@@ -70,10 +85,13 @@ class RepositoryConfigManager:
         :param repo_name: Name of the repository
         :param config: Configuration dictionary
         :param workspace_path: Path to the GitHub Actions workspace
+        :return: Path to the created/updated configuration file
         """
         try:
-            # Ensure repository name is a string
+            # Ensure repository name is a string and not the placeholder
             repo_name = str(repo_name)
+            if config.get("name") == "[repository-name]":
+                config["name"] = repo_name
 
             # Ensure repositories directory exists
             repositories_dir = os.path.join(workspace_path, "repositories")
@@ -110,7 +128,7 @@ class RepositoryConfigManager:
         """
         try:
             # Validate and set a default repository name
-            repo_name = repo_name or config.get("name", "default-repository")
+            repo_name = str(repo_name or config.get("name", "default-repository"))
 
             # Check if repository exists
             try:
@@ -194,10 +212,8 @@ class RepositoryConfigManager:
         except GithubException as e:
             # Log the specific error, but continue
             self.logger.warning(f"Could not update all repository settings: {e}")
-
-
 def main():
-    # Enhanced environment variable handling
+    # Enhanced environment variable handling (same as previous implementation)
     def get_env_var(var_name, default=None, required=True):
         value = os.environ.get(var_name, default)
         if required and not value:
@@ -210,8 +226,11 @@ def main():
         GITHUB_ORGANIZATION = get_env_var("GITHUB_ORGANIZATION")
         GITHUB_WORKSPACE = get_env_var("GITHUB_WORKSPACE", default=os.getcwd(), required=False)
 
-        # Determine repository name
-        REPOSITORY_NAME = os.environ.get("REPOSITORY_NAME") or os.environ.get("INPUT_REPOSITORY_NAME")
+        # Determine repository name with advanced logic
+        REPOSITORY_NAME = (
+            os.environ.get("REPOSITORY_NAME") or 
+            os.environ.get("INPUT_REPOSITORY_NAME")
+        )
 
         # If no repository name is provided, try to determine from changed files
         if not REPOSITORY_NAME:
@@ -235,14 +254,14 @@ def main():
         # Initialize manager
         manager = RepositoryConfigManager(GITHUB_TOKEN, GITHUB_ORGANIZATION)
 
-        # Determine configuration file path
+        # Determine configuration file path with more flexibility
         if REPOSITORY_NAME:
             config_path = os.path.join(GITHUB_WORKSPACE, "repositories", str(REPOSITORY_NAME), "repository.yml")
         else:
             config_path = os.path.join(GITHUB_WORKSPACE, "default_repository.yml")
 
-        # Load configuration
-        config, repo_name = manager.load_repository_config(config_path)
+        # Load configuration with optional repository name
+        config, repo_name = manager.load_repository_config(config_path, REPOSITORY_NAME)
 
         # Ensure repository name is a string
         repo_name = str(repo_name)

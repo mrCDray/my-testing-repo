@@ -1,7 +1,7 @@
 # This id the default configuration settings file is used to manage the repository in the organization
 repository:
-  # The name of the repository
-  name: [default-repository-setting]
+  # The name of the repository to be replaced with actual name passed in the action and create config file if one dose not already exist
+  name: [repository-name]
   # A list of topics to set on the repository - can alternatively set like this: [github, probot, new-topic, another-topic, topic-12]
   topics: []
   # Settings for Code security and analysis
@@ -43,78 +43,78 @@ repository:
   allow_update_branch: true
   # Whether to archive this repository. false will unarchive a previously archived repository.
   archived: false
-# Custom properties
-# See https://docs.github.com/en/rest/repos/custom-properties?apiVersion=2022-11-28
-custom_properties:
-  #- name: test
-  #  value: test
-# rulesets
-# See https://docs.github.com/en/rest/orgs/rules?apiVersion=2022-11-28#create-an-organization-repository-rulesetfor available options
-rulesets:
-  - name: ruleset-test
-    # The target of the ruleset. Can be one of:
-    # - branch
-    # - tag
-    target: branch
-    # The enforcement level of the ruleset. evaluate allows admins to test
-    # rules before enforcing them.
-    # - disabled
-    # - active
-    # - evaluate
-    enforcement: evaluate
-    conditions:
-      # Parameters for a repository ruleset ref name condition
-      ref_name:
-        # Array of ref names or patterns to include. One of these
-        # patterns must match for the condition to pass. Also accepts
-        # ~DEFAULT_BRANCH to include the default branch or ~ALL to
-        # include all branches.
-        include: ["~DEFAULT_BRANCH", "develop"]
-        # Array of ref names or patterns to exclude. The condition
-        # will not pass if any of these patterns match.
-        exclude: ["refs/heads/oldmaster"]
-    # Refer to https://docs.github.com/en/rest/orgs/rules#create-an-organization-repository-ruleset
-    rules:
-      - type: creation
-      - type: update
-        parameters:
-          # Branch can pull changes from its upstream repository
-          update_allows_fetch_and_merge: true
-      - type: deletion
-      - type: required_linear_history
-      - type: required_signatures
-      - type: pull_request
-        parameters:
-          # Reviewable commits pushed will dismiss previous pull
-          # request review approvals.
-          dismiss_stale_reviews_on_push: true
-          # Require an approving review in pull requests that modify
-          # files that have a designated code owner
-          require_code_owner_review: true
-          # Whether the most recent reviewable push must be approved
-          # by someone other than the person who pushed it.
-          require_last_push_approval: true
-          # The number of approving reviews that are required before a
-          # pull request can be merged.
-          required_approving_review_count: 2
-          # All conversations on code must be resolved before a pull
-          # request can be merged.
-          required_review_thread_resolution: true
-      # Choose which status checks must pass before branches can be merged
-      # into a branch that matches this rule. When enabled, commits must
-      # first be pushed to another branch, then merged or pushed directly
-      # to a branch that matches this rule after status checks have
-      # passed.
-      - type: required_status_checks
-        parameters:
-          # Whether pull requests targeting a matching branch must be
-          # tested with the latest code. This setting will not take
-          # effect unless at least one status check is enabled.
-          strict_required_status_checks_policy: true
-          required_status_checks:
-            - context: 
-              - CodeQL
-            - context: 
-              - CodeQL
-              #- pull-request-approvals.yml
-              #- pr-review-requirements
+  # Custom properties
+  # See https://docs.github.com/en/rest/repos/custom-properties?apiVersion=2022-11-28
+  custom_properties:
+    #- name: test
+    #  value: test
+  # rulesets
+  # See https://docs.github.com/en/rest/orgs/rules?apiVersion=2022-11-28#create-an-organization-repository-rulesetfor available options
+  rulesets:
+    - name: ruleset-test
+      # The target of the ruleset. Can be one of:
+      # - branch
+      # - tag
+      target: branch
+      # The enforcement level of the ruleset. evaluate allows admins to test
+      # rules before enforcing them.
+      # - disabled
+      # - active
+      # - evaluate
+      enforcement: evaluate
+      conditions:
+        # Parameters for a repository ruleset ref name condition
+        ref_name:
+          # Array of ref names or patterns to include. One of these
+          # patterns must match for the condition to pass. Also accepts
+          # ~DEFAULT_BRANCH to include the default branch or ~ALL to
+          # include all branches.
+          include: ["~DEFAULT_BRANCH", "develop"]
+          # Array of ref names or patterns to exclude. The condition
+          # will not pass if any of these patterns match.
+          exclude: ["refs/heads/oldmaster"]
+      # Refer to https://docs.github.com/en/rest/orgs/rules#create-an-organization-repository-ruleset
+      rules:
+        - type: creation
+        - type: update
+          parameters:
+            # Branch can pull changes from its upstream repository
+            update_allows_fetch_and_merge: true
+        - type: deletion
+        - type: required_linear_history
+        - type: required_signatures
+        - type: pull_request
+          parameters:
+            # Reviewable commits pushed will dismiss previous pull
+            # request review approvals.
+            dismiss_stale_reviews_on_push: true
+            # Require an approving review in pull requests that modify
+            # files that have a designated code owner
+            require_code_owner_review: true
+            # Whether the most recent reviewable push must be approved
+            # by someone other than the person who pushed it.
+            require_last_push_approval: true
+            # The number of approving reviews that are required before a
+            # pull request can be merged.
+            required_approving_review_count: 2
+            # All conversations on code must be resolved before a pull
+            # request can be merged.
+            required_review_thread_resolution: true
+        # Choose which status checks must pass before branches can be merged
+        # into a branch that matches this rule. When enabled, commits must
+        # first be pushed to another branch, then merged or pushed directly
+        # to a branch that matches this rule after status checks have
+        # passed.
+        - type: required_status_checks
+          parameters:
+            # Whether pull requests targeting a matching branch must be
+            # tested with the latest code. This setting will not take
+            # effect unless at least one status check is enabled.
+            strict_required_status_checks_policy: true
+            required_status_checks:
+              - context: 
+                - CodeQL
+              - context: 
+                - CodeQL
+                #- pull-request-approvals.yml
+                #- pr-review-requirements

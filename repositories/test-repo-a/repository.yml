@@ -10,8 +10,7 @@ repository:
   has_issues: true
   has_projects: true
   has_wiki: true
-  name:
-  - default-repository-setting
+  name: test-repo-a
   security:
     enableAutomatedSecurityFixes: true
     enableVulnerabilityAlerts: true
