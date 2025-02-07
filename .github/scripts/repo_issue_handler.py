@@ -43,14 +43,26 @@ class RepositoryHealthChecker:
 
             try:
                 repo_info = self._check_repository_health(repo)
-                repo_data.append(repo_info)
+                if repo_info:
+                    repo_data.append(repo_info)
             except Exception as e:
                 self.logger.error(f"Error processing repository {repo.name}: {str(e)}")
 
-        # Create DataFrame
+        # Create DataFrame with robust error handling
+        if not repo_data:
+            self.logger.warning("No repository data collected")
+            return pd.DataFrame(), {}
+
+        # Ensure all dictionaries have the same keys
+        keys = set().union(*repo_data)
+        for item in repo_data:
+            for key in keys:
+                if key not in item:
+                    item[key] = None
+
         df = pd.DataFrame(repo_data)
 
-        # Calculate summary statistics
+        # Calculate summary statistics with error handling
         summary = {
             "total_repos": len(df),
             "archived_repos": df["is_archived"].sum() if "is_archived" in df.columns else 0,
@@ -58,6 +70,7 @@ class RepositoryHealthChecker:
         }
 
         return df, summary
+
 
     def _check_repository_health(self, repo) -> Dict[str, Any]:
         """
