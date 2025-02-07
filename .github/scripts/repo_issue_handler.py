@@ -63,7 +63,7 @@ class RepositoryHealthChecker:
             # Ensure safe DataFrame creation
             if not repo_data:
                 self.logger.warning("No repository data collected")
-                return pd.DataFrame(columns=['name', 'is_archived', 'is_healthy']), {}
+                return pd.DataFrame(columns=["name", "is_archived", "is_healthy"]), {}
 
             # Standardize keys across all dictionaries
             keys = set().union(*repo_data)
@@ -77,15 +77,15 @@ class RepositoryHealthChecker:
             # Safe summary calculation with default values
             summary = {
                 "total_repos": len(df),
-                "archived_repos": df['is_archived'].fillna(False).sum(),
-                "unhealthy_repos": df['is_healthy'].fillna(False).sum()
+                "archived_repos": df["is_archived"].fillna(False).sum(),
+                "unhealthy_repos": df["is_healthy"].fillna(False).sum(),
             }
 
             return df, summary
 
         except Exception as e:
             self.logger.error(f"Fatal error in scan_organization: {e}")
-            return pd.DataFrame(columns=['name', 'is_archived', 'is_healthy']), {}
+            return pd.DataFrame(columns=["name", "is_archived", "is_healthy"]), {}
 
     def _check_repository_health(self, repo) -> Dict[str, Any]:
         """
@@ -94,11 +94,7 @@ class RepositoryHealthChecker:
         :param repo: GitHub repository object
         :return: Dictionary of repository health details
         """
-        health_details = {
-            "name": repo.name, 
-            "is_archived": repo.archived, 
-            "is_healthy": True
-        }
+        health_details = {"name": repo.name, "is_archived": repo.archived, "is_healthy": True}
 
         checks = self.config.get("scan", {}).get("checks", [])
 
@@ -109,7 +105,7 @@ class RepositoryHealthChecker:
                 self._safe_check_repository_age(repo, health_details)
         except Exception as e:
             self.logger.error(f"Repository details check failed for {repo.name}: {e}")
-            health_details['is_healthy'] = False
+            health_details["is_healthy"] = False
 
         # Add more defensive checks for other sections similarly...
 
