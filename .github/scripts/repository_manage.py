@@ -16,12 +16,11 @@ class RepositoryConfigManager:
         """
         self.g = Github(github_token)
         self.org = self.g.get_organization(organization)
-        logging.basicConfig(level=logging.INFO, 
-                            format="%(asctime)s - %(levelname)s - %(message)s",
-                            handlers=[
-                                logging.StreamHandler(sys.stdout),
-                                logging.FileHandler('repository_manage.log')
-                            ])
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(message)s",
+            handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler("repository_manage.log")],
+        )
         self.logger = logging.getLogger(__name__)
 
     def load_repository_config(self, config_path):
@@ -38,10 +37,10 @@ class RepositoryConfigManager:
                     config = yaml.safe_load(file)
                     # Extract repository configuration, prioritizing the 'name' in the config
                     repo_config = config.get("repository", {})
-                    
+
                     # Ensure name is a string, use default if not
-                    repo_name = str(repo_config.get('name', 'default-repository'))
-                    
+                    repo_name = str(repo_config.get("name", "default-repository"))
+
                     return repo_config, repo_name
 
             # If no specific config, load default configuration
@@ -50,19 +49,19 @@ class RepositoryConfigManager:
                 with open(default_config_path, "r") as file:
                     config = yaml.safe_load(file)
                     repo_config = config.get("repository", {})
-                    
+
                     # Ensure name is a string, use default if not
-                    repo_name = str(repo_config.get('name', 'default-repository'))
-                    
+                    repo_name = str(repo_config.get("name", "default-repository"))
+
                     return repo_config, repo_name
-            
+
             # If no configuration found at all
             self.logger.warning("No configuration found. Using minimal defaults.")
-            return {}, 'default-repository'
+            return {}, "default-repository"
 
         except (FileNotFoundError, yaml.YAMLError) as e:
             self.logger.error(f"Error loading configuration: {e}")
-            return {}, 'default-repository'
+            return {}, "default-repository"
 
     def create_or_update_repository_config(self, repo_name, config, workspace_path):
         """
@@ -210,27 +209,27 @@ def main():
         GITHUB_TOKEN = get_env_var("GITHUB_TOKEN")
         GITHUB_ORGANIZATION = get_env_var("GITHUB_ORGANIZATION")
         GITHUB_WORKSPACE = get_env_var("GITHUB_WORKSPACE", default=os.getcwd(), required=False)
-        
+
         # Determine repository name
-        REPOSITORY_NAME = os.environ.get("REPOSITORY_NAME") or \
-                          os.environ.get("INPUT_REPOSITORY_NAME")
+        REPOSITORY_NAME = os.environ.get("REPOSITORY_NAME") or os.environ.get("INPUT_REPOSITORY_NAME")
 
         # If no repository name is provided, try to determine from changed files
         if not REPOSITORY_NAME:
             # Check GitHub event path for push event details
             github_event_path = os.environ.get("GITHUB_EVENT_PATH")
             if github_event_path and os.path.exists(github_event_path):
-                with open(github_event_path, 'r') as f:
+                with open(github_event_path, "r") as f:
                     import json
+
                     event_data = json.load(f)
-                    
+
                     # Look for repository configuration files in the changed files
-                    changed_files = event_data.get('push', {}).get('files', [])
+                    changed_files = event_data.get("push", {}).get("files", [])
                     for file in changed_files:
-                        file_path = file.get('filename', '')
-                        if file_path.startswith('repositories/') and file_path.endswith('/repository.yml'):
+                        file_path = file.get("filename", "")
+                        if file_path.startswith("repositories/") and file_path.endswith("/repository.yml"):
                             # Extract repository name from path
-                            REPOSITORY_NAME = file_path.split('/')[1]
+                            REPOSITORY_NAME = file_path.split("/")[1]
                             break
 
         # Initialize manager
@@ -249,9 +248,7 @@ def main():
         repo_name = str(repo_name)
 
         # Create/update repository configuration
-        config_file_path = manager.create_or_update_repository_config(
-            repo_name, config, GITHUB_WORKSPACE
-        )
+        config_file_path = manager.create_or_update_repository_config(repo_name, config, GITHUB_WORKSPACE)
 
         # Create or update the GitHub repository
         manager.create_or_update_github_repository(repo_name, config)
@@ -266,4 +263,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
