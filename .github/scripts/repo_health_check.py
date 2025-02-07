@@ -1,216 +1,326 @@
 import os
 import sys
-import yaml
-import logging
-from typing import Dict, Tuple, List
-from datetime import datetime
+import argparse
 import pandas as pd
+from datetime import datetime
+import concurrent.futures
+from tqdm import tqdm
+from typing import Dict
+import yaml
 from github import Github
 
 
-class RepositoryHealthChecker:
-    def __init__(self, token: str, org_name: str, config_path: str = None):
+def parse_args():
+    parser = argparse.ArgumentParser(description="GitHub Repository Health Checker")
+    parser.add_argument("--init-config", action="store_true", help="Create default configuration file")
+    parser.add_argument("--token", help="GitHub token", default=os.environ.get("GITHUB_TOKEN"))
+    parser.add_argument("--org", help="GitHub organization name", default=os.environ.get("ORG_NAME"))
+    return parser.parse_args()
+
+
+class ConfigManager:
+    def __init__(self, config_path: str = "repo_health_config.yaml"):
         """
-        Initialize the repository health checker with comprehensive error handling
-
-        :param token: GitHub API token
-        :param org_name: GitHub organization name
-        :param config_path: Path to the health check configuration file
+        Initialize configuration manager.
+        Args:
+            config_path (str): Path to YAML configuration file
         """
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-        self.logger = logging.getLogger(__name__)
+        self.config_path = config_path
+        self.config = self.load_config()
 
-        # Determine config path
-        if config_path is None:
-            # Search for config in .github directory
-            potential_paths = [
-                os.path.join(".github", "repo_health_config.yml"),
-                os.path.join(".github", "repo_health_config.yaml"),
-                "repo_health_config.yml",
-                "repo_health_config.yaml",
-            ]
+    def load_config(self) -> Dict:
+        """Load configuration from YAML file."""
+        if not os.path.exists(self.config_path):
+            self.create_default_config()
 
-            for path in potential_paths:
-                if os.path.exists(path):
-                    config_path = path
-                    break
+        with open(self.config_path, "r") as f:
+            return yaml.safe_load(f)
 
-            if not config_path:
-                self.logger.warning("No configuration file found. Using default settings.")
-                config_path = os.path.join(".github", "repo_health_config.yml")
+    def create_default_config(self):
+        """Create default configuration file if none exists."""
+        default_config = {
+            "required_files": {
+                "README.md": {"required": True, "weight": 1.0, "description": "Project documentation and overview"},
+                "CODEOWNERS": {
+                    "required": True,
+                    "weight": 1.0,
+                    "description": "Define individuals responsible for code",
+                },
+                "SECURITY.md": {
+                    "required": True,
+                    "weight": 1.0,
+                    "description": "Security policy and reporting instructions",
+                },
+                "CODE_OF_CONDUCT.md": {"required": True, "weight": 0.8, "description": "Community behavior guidelines"},
+                "GOVERNANCE.md": {"required": False, "weight": 0.5, "description": "Project governance model"},
+                "SUPPORT.md": {"required": False, "weight": 0.5, "description": "Support guidelines and resources"},
+                ".gitignore": {"required": True, "weight": 0.8, "description": "Git ignore patterns"},
+                "pull_request_template.md": {
+                    "required": True,
+                    "weight": 0.8,
+                    "description": "PR template for contributors",
+                },
+            },
+            "security_requirements": {
+                "security_scanning": {"required": True, "weight": 1.0, "description": "Advanced security scanning"},
+                "dependabot": {"required": True, "weight": 1.0, "description": "Dependabot alerts"},
+            },
+            "alert_severity_weights": {"critical": 1.0, "high": 0.75, "medium": 0.5, "low": 0.25},
+            "scoring": {
+                "component_weights": {"required_files": 0.4, "security_scanning": 0.3, "dependabot": 0.3},
+                "thresholds": {"green": 80, "amber": 60},
+            },
+            "scanning": {"max_workers": 5, "include_archived": False, "include_private": True},
+            "reporting": {
+                "output_directory": "reports",
+                "include_top_bottom": 5,
+                "export_formats": ["csv", "markdown"],
+            },
+        }
 
+        with open(self.config_path, "w") as f:
+            yaml.safe_dump(default_config, f, sort_keys=False)
+
+
+class GitHubOrgHealthCheck:
+    def __init__(self, token: str, org_name: str, config_path: str = "repo_health_config.yaml"):
+        """
+        Initialize the health checker with GitHub token, organization name, and config.
+        Args:
+            token (str): GitHub personal access token
+            org_name (str): GitHub organization name
+            config_path (str): Path to configuration file
+        """
+        self.g = Github(token)
+        self.org = self.g.get_organization(org_name)
+        self.config_manager = ConfigManager(config_path)
+        self.config = self.config_manager.config
+
+    def check_single_repo(self, repo):
+        """Check health metrics for a single repository."""
         try:
-            with open(config_path, mode="r", encoding="utf-8") as config_file:
-                self.config = yaml.safe_load(config_file)
-            self.logger.info(f"Loaded configuration from {config_path}")
-        except FileNotFoundError:
-            self.logger.warning(f"Config file {config_path} not found. Using default config.")
-            self.config = {}
-        except Exception as e:
-            self.logger.error(f"Error loading config file: {e}")
-            self.config = {}
+            metrics = {
+                "repository": repo.full_name,
+                "last_updated": repo.updated_at.isoformat(),
+                "required_files": {file: False for file in self.config["required_files"].keys()},
+                "security_scanning": False,
+                "dependabot_enabled": False,
+                "dependabot_alerts": {k: 0 for k in self.config["alert_severity_weights"].keys()},
+                "is_archived": repo.archived,
+                "is_private": repo.private,
+            }
 
-        try:
-            self.github = Github(token)
-            self.org = self.github.get_organization(org_name)
-        except Exception as e:
-            self.logger.error(f"Failed to initialize GitHub connection: {e}")
-            raise
+            # Skip archived repositories if configured
+            if repo.archived and not self.config["scanning"]["include_archived"]:
+                return metrics
 
-    def generate_report(self) -> List[str]:
-        """
-        Generate comprehensive health reports for repositories
+            # Skip private repositories if configured
+            if repo.private and not self.config["scanning"]["include_private"]:
+                return metrics
 
-        :return: List of report file paths
-        """
-        # Scan organization and get results
-        df, summary = self.scan_organization()
-
-        # Create reports directory if it doesn't exist
-        os.makedirs("reports", exist_ok=True)
-
-        # Generate timestamp for unique report filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # Create summary report
-        summary_path = f"reports/summary_{timestamp}.md"
-        self._generate_summary_report(summary, summary_path)
-
-        # Create detailed repository report
-        detailed_path = f"reports/detailed_{timestamp}.csv"
-        df.to_csv(detailed_path, index=False)
-
-        return [summary_path, detailed_path]
-
-    def _generate_summary_report(self, summary: Dict, path: str):
-        """
-        Generate a markdown summary report
-
-        :param summary: Summary statistics dictionary
-        :param path: File path to save the report
-        """
-        with open(path, mode="w", encoding="utf-8") as f:
-            f.write("# Repository Health Check Summary\n\n")
-            f.write(f"**Total Repositories**: {summary.get('total_repos', 0)}\n")
-            f.write(f"**Archived Repositories**: {summary.get('archived_repos', 0)}\n")
-            f.write(f"**Unhealthy Repositories**: {summary.get('unhealthy_repos', 0)}\n")
-
-            # Add severity levels
-            if summary.get("unhealthy_repos", 0) > 0:
-                f.write("\n## Severity\n")
-                f.write("🔴 High Risk: Immediate action required\n")
-
-    def scan_organization(self) -> Tuple[pd.DataFrame, Dict[str, int]]:
-        """
-        Scan repositories in the organization and generate a health report
-
-        :return: DataFrame with repository details and summary statistics
-        """
-        repo_data = []
-        ignored_repos = self.config.get("global", {}).get("ignore_repos", [])
-
-        for repo in self.org.get_repos():
-            # Skip ignored repositories
-            if repo.name in ignored_repos:
-                continue
-
+            # Check required files
             try:
-                # Basic repository health check
-                repo_info = {
-                    "name": repo.name,
-                    "is_archived": repo.archived,
-                    "is_healthy": True,
-                    "description": repo.description or "No description",
-                    "created_at": repo.created_at,
-                    "updated_at": repo.updated_at,
-                }
+                contents = repo.get_contents("")
+                for content in contents:
+                    if content.name.upper() in [f.upper() for f in self.config["required_files"].keys()]:
+                        metrics["required_files"][content.name] = True
 
-                # Additional health checks
-                self._check_repository_age(repo, repo_info)
-                self._check_repository_details(repo, repo_info)
+                # Check .github folder for PR template
+                try:
+                    github_contents = repo.get_contents(".github")
+                    for content in github_contents:
+                        if content.name.upper() == "PULL_REQUEST_TEMPLATE.MD":
+                            metrics["required_files"]["pull_request_template.md"] = True
+                except:
+                    pass
+            except:
+                pass
 
-                repo_data.append(repo_info)
+            # Calculate required files score with weights
+            total_weight = sum(
+                file_config["weight"]
+                for file_config in self.config["required_files"].values()
+                if file_config["required"]
+            )
 
-            except Exception as e:
-                self.logger.error(f"Error processing repository {repo.name}: {e}")
-                # Add minimal information even if checks fail
-                repo_data.append({"name": repo.name, "is_archived": False, "is_healthy": False, "error": str(e)})
+            weighted_sum = sum(
+                self.config["required_files"][file]["weight"]
+                for file, present in metrics["required_files"].items()
+                if present and self.config["required_files"][file]["required"]
+            )
 
-        # Create DataFrame with default columns
-        df = pd.DataFrame(
-            repo_data, columns=["name", "is_archived", "is_healthy", "description", "created_at", "updated_at", "error"]
-        )
+            metrics["required_files_score"] = (weighted_sum / total_weight * 100) if total_weight > 0 else 0
 
-        # Calculate summary
+            # Check security features
+            security_config = self.config["security_requirements"]
+            try:
+                security_info = repo.get_security_and_analysis()
+                metrics["security_scanning"] = (
+                    security_info.advanced_security.status == "enabled" if security_info.advanced_security else False
+                )
+            except:
+                pass
+
+            # Check Dependabot with configured weights
+            try:
+                metrics["dependabot_enabled"] = repo.get_vulnerability_alert()
+                if metrics["dependabot_enabled"]:
+                    alerts = repo.get_vulnerability_alerts()
+                    for alert in alerts:
+                        severity = alert.security_advisory.severity.lower()
+                        if severity in metrics["dependabot_alerts"]:
+                            metrics["dependabot_alerts"][severity] += 1
+            except:
+                pass
+
+            # Calculate alert score using configured weights
+            weighted_sum = sum(
+                metrics["dependabot_alerts"][severity] * weight
+                for severity, weight in self.config["alert_severity_weights"].items()
+            )
+            metrics["alert_score"] = max(0, 100 - (weighted_sum * 10))
+
+            # Calculate overall health score using configured weights
+            component_weights = self.config["scoring"]["component_weights"]
+            scores = {
+                "required_files": metrics["required_files_score"],
+                "security_scanning": 100 if metrics["security_scanning"] else 0,
+                "dependabot": metrics["alert_score"] if metrics["dependabot_enabled"] else 0,
+            }
+
+            metrics["overall_score"] = sum(
+                scores[component] * weight for component, weight in component_weights.items()
+            )
+
+            # Determine traffic light using configured thresholds
+            thresholds = self.config["scoring"]["thresholds"]
+            metrics["traffic_light"] = (
+                "GREEN"
+                if metrics["overall_score"] >= thresholds["green"]
+                else "AMBER" if metrics["overall_score"] >= thresholds["amber"] else "RED"
+            )
+
+            return metrics
+
+        except Exception as e:
+            print(f"Error processing repository {repo.full_name}: {str(e)}")
+            return None
+
+    def scan_organization(self):
+        """Scan all repositories in the organization."""
+        print(f"Scanning repositories in organization: {self.org.login}")
+
+        repos = list(self.org.get_repos())
+        print(f"Found {len(repos)} repositories")
+
+        results = []
+        max_workers = self.config["scanning"]["max_workers"]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(self.check_single_repo, repo): repo for repo in repos}
+
+            for future in tqdm(concurrent.futures.as_completed(futures), total=len(repos)):
+                result = future.result()
+                if result:
+                    results.append(result)
+
+        df = pd.DataFrame(results)
+
         summary = {
-            "total_repos": len(df),
+            "total_repos": len(results),
             "archived_repos": df["is_archived"].sum(),
-            "unhealthy_repos": (~df["is_healthy"]).sum(),
+            "private_repos": df["is_private"].sum(),
+            "avg_health_score": df["overall_score"].mean(),
+            "traffic_light_distribution": df["traffic_light"].value_counts().to_dict(),
+            "security_scanning_enabled": df["security_scanning"].sum(),
+            "dependabot_enabled": df["dependabot_enabled"].sum(),
+            "total_critical_alerts": df["dependabot_alerts"].apply(lambda x: x["critical"]).sum(),
+            "total_high_alerts": df["dependabot_alerts"].apply(lambda x: x["high"]).sum(),
+            "scan_date": datetime.now().isoformat(),
         }
 
         return df, summary
 
-    def _check_repository_age(self, repo, repo_info):
-        """
-        Check repository age and activity
+    def generate_report(self):
+        """Generate reports according to configuration."""
+        output_dir = self.config["reporting"]["output_directory"]
+        os.makedirs(output_dir, exist_ok=True)
 
-        :param repo: GitHub repository object
-        :param repo_info: Dictionary to update with age information
-        """
-        max_age_days = self.config.get("repository_details", {}).get("max_age_days", 365)
+        df, summary = self.scan_organization()
+        reports = []
 
-        try:
-            # Use updated_at as a proxy for activity if no commits are found
-            last_activity_date = repo.updated_at
+        # Generate configured report formats
+        for format in self.config["reporting"]["export_formats"]:
+            if format == "csv":
+                csv_path = os.path.join(
+                    output_dir, f"{self.org.login}_repo_health_{datetime.now().strftime('%Y%m%d')}.csv"
+                )
+                df.to_csv(csv_path, index=False)
+                reports.append(csv_path)
 
-            # Calculate days since last activity
-            days_since_activity = (datetime.now(last_activity_date.tzinfo) - last_activity_date).days
+            elif format == "markdown":
+                summary_path = os.path.join(
+                    output_dir, f"{self.org.login}_summary_{datetime.now().strftime('%Y%m%d')}.md"
+                )
+                with open(summary_path, "w") as f:
+                    f.write(f"# Repository Health Summary for {self.org.login}\n\n")
+                    f.write(f"Scan Date: {summary['scan_date']}\n\n")
 
-            repo_info["days_since_last_activity"] = days_since_activity
+                    f.write("## Overview\n")
+                    f.write(f"- Total Repositories: {summary['total_repos']}\n")
+                    f.write(f"- Archived Repositories: {summary['archived_repos']}\n")
+                    f.write(f"- Private Repositories: {summary['private_repos']}\n")
+                    f.write(f"- Average Health Score: {summary['avg_health_score']:.2f}%\n\n")
 
-            if days_since_activity > max_age_days:
-                repo_info["is_healthy"] = False
-                repo_info["age_status"] = "Stale"
-            else:
-                repo_info["age_status"] = "Active"
+                    f.write("## Traffic Light Distribution\n")
+                    for status, count in summary["traffic_light_distribution"].items():
+                        f.write(f"- {status}: {count}\n")
 
-        except Exception as e:
-            self.logger.error(f"Age check failed for {repo.name}: {e}")
-            repo_info["is_healthy"] = False
-            repo_info["age_status"] = "Unknown"
+                    f.write("\n## Security Status\n")
+                    f.write(f"- Repositories with Security Scanning: {summary['security_scanning_enabled']}\n")
+                    f.write(f"- Repositories with Dependabot: {summary['dependabot_enabled']}\n")
+                    f.write(f"- Total Critical Alerts: {summary['total_critical_alerts']}\n")
+                    f.write(f"- Total High Alerts: {summary['total_high_alerts']}\n")
 
-    def _check_repository_details(self, repo, repo_info):
-        """
-        Check repository details against configuration
+                    # Add top and bottom performers
+                    top_n = self.config["reporting"]["include_top_bottom"]
+                    f.write(f"\n## Top {top_n} Repositories by Health Score\n")
+                    top = df.nlargest(top_n, "overall_score")[["repository", "overall_score", "traffic_light"]]
+                    for _, row in top.iterrows():
+                        f.write(f"- {row['repository']}: {row['overall_score']:.2f}% ({row['traffic_light']})\n")
 
-        :param repo: GitHub repository object
-        :param repo_info: Dictionary to update with repository details
-        """
-        required_fields = self.config.get("repository_details", {}).get("required_fields", [])
+                    f.write(f"\n## Bottom {top_n} Repositories by Health Score\n")
+                    bottom = df.nsmallest(top_n, "overall_score")[["repository", "overall_score", "traffic_light"]]
+                    for _, row in bottom.iterrows():
+                        f.write(f"- {row['repository']}: {row['overall_score']:.2f}% ({row['traffic_light']})\n")
 
-        for field in required_fields:
-            value = getattr(repo, field, None)
-            if not value:
-                repo_info["is_healthy"] = False
-                self.logger.warning(f"Repository {repo.name} missing required field: {field}")
+                reports.append(summary_path)
+
+        return reports
 
 
-def main():
-    github_token = os.environ.get("GITHUB_TOKEN")
-    organization = os.environ.get("ORG_NAME", "mrCDray")
+# Example usage
+if __name__ == "__main__":
+    args = parse_args()
 
-    try:
-        checker = RepositoryHealthChecker(github_token, organization)
-        report_paths = checker.generate_report()
+    # Just create config and exit if --init-config is specified
+    if args.init_config:
+        ConfigManager().create_default_config()
+        print("Created default configuration file: repo_health_config.yaml")
+        sys.exit(0)
 
-        print("Health check reports generated:")
-        for path in report_paths:
-            print(f" - {path}")
-
-    except Exception as e:
-        logging.error(f"Health check process failed: {e}")
+    # Validate required parameters
+    if not args.token:
+        print("Error: GitHub token not provided")
         sys.exit(1)
 
+    if not args.org:
+        print("Error: Organization name not provided")
+        sys.exit(1)
 
-if __name__ == "__main__":
-    main()
+    # Run health check
+    checker = GitHubOrgHealthCheck(args.token, args.org)
+    report_paths = checker.generate_report()
+
+    print(f"\nReports generated:")
+    for path in report_paths:
+        print(f"- {path}")
