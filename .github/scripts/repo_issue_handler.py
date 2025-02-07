@@ -71,7 +71,6 @@ class RepositoryHealthChecker:
 
         return df, summary
 
-
     def _check_repository_health(self, repo) -> Dict[str, Any]:
         """
         Perform comprehensive health checks on a repository
