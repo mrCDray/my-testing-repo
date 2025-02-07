@@ -5,6 +5,9 @@ import logging
 from github import Github, GithubException
 from github.Repository import Repository
 
+class IndentDumper(yaml.Dumper):
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, False)
 
 class RepositoryConfigManager:
     def __init__(self, github_token, organization):
@@ -109,7 +112,7 @@ class RepositoryConfigManager:
 
             # Write the configuration file
             with open(config_file_path, "w") as file:
-                yaml.dump(config_to_save, file, default_flow_style=False)
+                yaml.dump(config_to_save, file, sort_keys=False, Dumper=IndentDumper, default_flow_style=False, indent=2)
 
             self.logger.info(f"Created/Updated repository configuration for {repo_name}")
             return config_file_path
