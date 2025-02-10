@@ -88,8 +88,11 @@ class RepositoryCreator:
 
                 # Only apply settings if repository was successfully created
                 if repo:
-                    self._apply_repository_settings(repo, config)
-                    return repo
+                    try:
+                        self._apply_repository_settings(repo, config)
+                        return repo
+                    except Exception as e:
+                        self.logger.error(f"Error creating repository {repo_name}: {e}")
 
         except GithubException as e:
             self.logger.error(f"GitHub API error while creating repository {repo_name}: {e}")
