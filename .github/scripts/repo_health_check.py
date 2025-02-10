@@ -34,7 +34,7 @@ class ConfigManager:
         if not os.path.exists(self.config_path):
             self.create_default_config()
 
-        with open(self.config_path, mode="r", encoding='utf-8') as file:
+        with open(self.config_path, mode="r", encoding="utf-8") as file:
             return yaml.safe_load(file)
 
     def create_default_config(self):
@@ -79,7 +79,7 @@ class ConfigManager:
             },
         }
 
-        with open(self.config_path, mode="w", encoding='utf-8') as file:
+        with open(self.config_path, mode="w", encoding="utf-8") as file:
             yaml.safe_dump(default_config, file, sort_keys=False)
 
 
@@ -262,7 +262,7 @@ class GitHubOrgHealthCheck:
                 summary_path = os.path.join(
                     output_dir, f"{self.org.login}_summary_{datetime.now().strftime('%Y%m%d')}.md"
                 )
-                with open(summary_path, "w", encoding='utf-8') as file:
+                with open(summary_path, "w", encoding="utf-8") as file:
                     file.write(f"# Repository Health Summary for {self.org.login}\n\n")
                     file.write(f"Scan Date: {summary['scan_date']}\n\n")
 
