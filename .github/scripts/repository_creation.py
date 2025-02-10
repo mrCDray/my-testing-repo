@@ -67,14 +67,33 @@ class RepositoryCreator:
     def create_github_repository(self, repo_name, config):
         """Create a new GitHub repository with the specified configuration."""
         try:
-            repo = self._check_if_repo_exists(repo_name)
-            if repo:
-                return repo
+            # Initialize repo variable
+            repo = None
 
-            repo = self._create_new_repo(repo_name, config)
-            if repo:
-                self._apply_repository_settings(repo, config)
-                return repo
+            # Check if repository already exists
+            try:
+                self.org.get_repo(repo_name)
+                self.logger.error(f"Repository {repo_name} already exists")
+                raise ValueError(f"Repository {repo_name} already exists")
+            except GithubException as e:
+                # Only proceed if the repository doesn't exist (404 error)
+                if e.status != 404:
+                    raise e
+
+                # Create new repository
+                repo = self.org.create_repo(
+                    name=repo_name, private=config.get("visibility", "private") == "private", auto_init=True
+                )
+                self.logger.info(f"Created new repository {repo_name}")
+
+                # Only apply settings if repository was successfully created
+                if repo:
+                    try:
+                        self._apply_repository_settings(repo, config)
+                        return repo
+                    except Exception as e:
+                        self.logger.error(f"Error creating repository {repo_name}: {e}")
+                        return None
 
         except GithubException as e:
             self.logger.error(f"GitHub API error while creating repository {repo_name}: {e}")
@@ -82,33 +101,7 @@ class RepositoryCreator:
         except Exception as e:
             self.logger.error(f"Error creating repository {repo_name}: {e}")
             raise
-
-    def _check_if_repo_exists(self, repo_name):
-        """Check if the repository already exists in the organization."""
-        try:
-            self.org.get_repo(repo_name)
-            self.logger.error(f"Repository {repo_name} already exists")
-            raise ValueError(f"Repository {repo_name} already exists")
-        except GithubException as e:
-            if e.status == 404:
-                return None
-            else:
-                raise e
-
-    def _create_new_repo(self, repo_name, config):
-        """Create a new repository in the organization."""
-        try:
-            repo = self.org.create_repo(
-                name=repo_name, private=config.get("visibility", "private") == "private", auto_init=True
-            )
-            self.logger.info(f"Created new repository {repo_name}")
-            return repo
-        except GithubException as e:
-            self.logger.error(f"GitHub API error while creating repository {repo_name}: {e}")
-            raise
-        except Exception as e:
-            self.logger.error(f"Error creating repository {repo_name}: {e}")
-            raise
+        return None
 
     def _apply_repository_settings(self, repo, config):
         """Apply initial settings to the newly created repository."""
