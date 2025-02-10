@@ -226,20 +226,20 @@ class RepoSyncManager:
                 branch_pattern = rule.get("pattern")
                 if not branch_pattern:
                     continue
-                    
+
                 protection_settings = {
                     "required_status_checks": rule.get("required_status_checks", None),
                     "enforce_admins": rule.get("enforce_admins", True),
                     "required_pull_request_reviews": rule.get("required_reviews", None),
-                    "restrictions": rule.get("restrictions", None)
+                    "restrictions": rule.get("restrictions", None),
                 }
-                
+
                 repo.get_branch(branch_pattern).edit_protection(**protection_settings)
                 changes[branch_pattern] = "protection rules updated"
-                
+
         except Exception as error:
             self.logger.error(f"Error updating branch protection: {str(error)}")
-        
+
         return changes
 
     def _sync_custom_properties(self, repo: Repository, properties: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -250,15 +250,15 @@ class RepoSyncManager:
                 property_name = property_config.get("name")
                 if not property_name:
                     continue
-                    
+
                 # Note: This is a placeholder for the actual implementation
                 # GitHub's API for custom properties might require specific handling
                 self.logger.info(f"Would set custom property {property_name} for {repo.name}")
                 changes[property_name] = "property update simulated"
-                
+
         except Exception as error:
             self.logger.error(f"Error updating custom properties: {str(error)}")
-        
+
         return changes
 
     def _apply_repository_config(self, repo: Repository, config: Dict[str, Any]) -> None:
