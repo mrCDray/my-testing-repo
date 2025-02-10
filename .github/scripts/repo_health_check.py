@@ -20,7 +20,7 @@ def parse_args():
 
 
 class ConfigManager:
-    def __init__(self, config_path: str = "repo_health_config.yaml"):
+    def __init__(self, config_path: str = "repo_health_config.yml"):
         """
         Initialize configuration manager.
         Args:
