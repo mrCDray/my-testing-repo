@@ -120,12 +120,12 @@ def get_changed_files():
                 modified = commit.get("modified", [])
                 added = commit.get("added", [])
                 renamed = commit.get("renamed", [])
-                
+
                 logging.info(f"Commit {commit.get('id', 'unknown')}:")
                 logging.info(f"  Modified files: {modified}")
                 logging.info(f"  Added files: {added}")
                 logging.info(f"  Renamed files: {renamed}")
-                
+
                 changed_files.extend(modified)
                 changed_files.extend(added)
                 changed_files.extend(renamed)
@@ -133,11 +133,11 @@ def get_changed_files():
         # Remove duplicates
         unique_files = list(set(changed_files))
         logging.info(f"All changed files: {unique_files}")
-        
+
         # Check for repository configuration files
         config_files = [f for f in unique_files if f.startswith("repositories/") and f.endswith("/repository.yml")]
         logging.info(f"Matched repository configuration files: {config_files}")
-        
+
         return unique_files
     except Exception as e:
         logging.error(f"Error reading GitHub event data: {e}")
@@ -149,7 +149,7 @@ def main():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)]
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
 
     # Log environment variables (excluding sensitive data)
