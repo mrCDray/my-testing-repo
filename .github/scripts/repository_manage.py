@@ -109,7 +109,6 @@ def main():
         # Read GitHub event data to get changed file
         with open(github_event_path, mode="r", encoding="utf-8") as f:
 
-
             event_data = json.load(f)
 
         # Find changed repository configuration file
