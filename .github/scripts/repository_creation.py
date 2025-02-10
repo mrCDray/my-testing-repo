@@ -72,7 +72,7 @@ class RepositoryCreator:
 
             # Check if repository already exists
             try:
-                existing_repo = self.org.get_repo(repo_name)
+                self.org.get_repo(repo_name)
                 self.logger.error(f"Repository {repo_name} already exists")
                 raise ValueError(f"Repository {repo_name} already exists")
             except GithubException as e:
@@ -90,8 +90,6 @@ class RepositoryCreator:
                 if repo:
                     self._apply_repository_settings(repo, config)
                     return repo
-                else:
-                    raise Exception("Failed to create repository")
 
         except GithubException as e:
             self.logger.error(f"GitHub API error while creating repository {repo_name}: {e}")
