@@ -1,11 +1,12 @@
 import os
 import sys
 import argparse
-import pandas as pd
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-import concurrent.futures
+from typing import Dict, List
+
+import pandas as pd
 from tqdm import tqdm
-from typing import Dict
 import yaml
 from github import Github
 
@@ -33,8 +34,8 @@ class ConfigManager:
         if not os.path.exists(self.config_path):
             self.create_default_config()
 
-        with open(self.config_path, "r") as f:
-            return yaml.safe_load(f)
+        with open(self.config_path, mode="r", encoding='utf-8') as file:
+            return yaml.safe_load(file)
 
     def create_default_config(self):
         """Create default configuration file if none exists."""
@@ -78,8 +79,8 @@ class ConfigManager:
             },
         }
 
-        with open(self.config_path, "w") as f:
-            yaml.safe_dump(default_config, f, sort_keys=False)
+        with open(self.config_path, mode="w", encoding='utf-8') as file:
+            yaml.safe_dump(default_config, file, sort_keys=False)
 
 
 class GitHubOrgHealthCheck:
@@ -131,10 +132,10 @@ class GitHubOrgHealthCheck:
                     for content in github_contents:
                         if content.name.upper() == "PULL_REQUEST_TEMPLATE.MD":
                             metrics["required_files"]["pull_request_template.md"] = True
-                except:
-                    pass
-            except:
-                pass
+                except Exception as github_err:
+                    print(f"Error checking .github folder: {str(github_err)}")
+            except Exception as contents_err:
+                print(f"Error checking repository contents: {str(contents_err)}")
 
             # Calculate required files score with weights
             total_weight = sum(
@@ -158,8 +159,8 @@ class GitHubOrgHealthCheck:
                 metrics["security_scanning"] = (
                     security_info.advanced_security.status == "enabled" if security_info.advanced_security else False
                 )
-            except:
-                pass
+            except Exception as security_err:
+                print(f"Error checking security features: {str(security_err)}")
 
             # Check Dependabot with configured weights
             try:
@@ -170,8 +171,8 @@ class GitHubOrgHealthCheck:
                         severity = alert.security_advisory.severity.lower()
                         if severity in metrics["dependabot_alerts"]:
                             metrics["dependabot_alerts"][severity] += 1
-            except:
-                pass
+            except Exception as dependabot_err:
+                print(f"Error checking Dependabot: {str(dependabot_err)}")
 
             # Calculate alert score using configured weights
             weighted_sum = sum(
@@ -215,7 +216,7 @@ class GitHubOrgHealthCheck:
 
         results = []
         max_workers = self.config["scanning"]["max_workers"]
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(self.check_single_repo, repo): repo for repo in repos}
 
             for future in tqdm(concurrent.futures.as_completed(futures), total=len(repos)):
@@ -249,49 +250,49 @@ class GitHubOrgHealthCheck:
         reports = []
 
         # Generate configured report formats
-        for format in self.config["reporting"]["export_formats"]:
-            if format == "csv":
+        for output_format in self.config["reporting"]["export_formats"]:
+            if output_format == "csv":
                 csv_path = os.path.join(
                     output_dir, f"{self.org.login}_repo_health_{datetime.now().strftime('%Y%m%d')}.csv"
                 )
                 df.to_csv(csv_path, index=False)
                 reports.append(csv_path)
 
-            elif format == "markdown":
+            elif output_format == "markdown":
                 summary_path = os.path.join(
                     output_dir, f"{self.org.login}_summary_{datetime.now().strftime('%Y%m%d')}.md"
                 )
-                with open(summary_path, "w") as f:
-                    f.write(f"# Repository Health Summary for {self.org.login}\n\n")
-                    f.write(f"Scan Date: {summary['scan_date']}\n\n")
+                with open(summary_path, "w", encoding='utf-8') as file:
+                    file.write(f"# Repository Health Summary for {self.org.login}\n\n")
+                    file.write(f"Scan Date: {summary['scan_date']}\n\n")
 
-                    f.write("## Overview\n")
-                    f.write(f"- Total Repositories: {summary['total_repos']}\n")
-                    f.write(f"- Archived Repositories: {summary['archived_repos']}\n")
-                    f.write(f"- Private Repositories: {summary['private_repos']}\n")
-                    f.write(f"- Average Health Score: {summary['avg_health_score']:.2f}%\n\n")
+                    file.write("## Overview\n")
+                    file.write(f"- Total Repositories: {summary['total_repos']}\n")
+                    file.write(f"- Archived Repositories: {summary['archived_repos']}\n")
+                    file.write(f"- Private Repositories: {summary['private_repos']}\n")
+                    file.write(f"- Average Health Score: {summary['avg_health_score']:.2f}%\n\n")
 
-                    f.write("## Traffic Light Distribution\n")
+                    file.write("## Traffic Light Distribution\n")
                     for status, count in summary["traffic_light_distribution"].items():
-                        f.write(f"- {status}: {count}\n")
+                        file.write(f"- {status}: {count}\n")
 
-                    f.write("\n## Security Status\n")
-                    f.write(f"- Repositories with Security Scanning: {summary['security_scanning_enabled']}\n")
-                    f.write(f"- Repositories with Dependabot: {summary['dependabot_enabled']}\n")
-                    f.write(f"- Total Critical Alerts: {summary['total_critical_alerts']}\n")
-                    f.write(f"- Total High Alerts: {summary['total_high_alerts']}\n")
+                    file.write("\n## Security Status\n")
+                    file.write(f"- Repositories with Security Scanning: {summary['security_scanning_enabled']}\n")
+                    file.write(f"- Repositories with Dependabot: {summary['dependabot_enabled']}\n")
+                    file.write(f"- Total Critical Alerts: {summary['total_critical_alerts']}\n")
+                    file.write(f"- Total High Alerts: {summary['total_high_alerts']}\n")
 
                     # Add top and bottom performers
                     top_n = self.config["reporting"]["include_top_bottom"]
-                    f.write(f"\n## Top {top_n} Repositories by Health Score\n")
+                    file.write(f"\n## Top {top_n} Repositories by Health Score\n")
                     top = df.nlargest(top_n, "overall_score")[["repository", "overall_score", "traffic_light"]]
                     for _, row in top.iterrows():
-                        f.write(f"- {row['repository']}: {row['overall_score']:.2f}% ({row['traffic_light']})\n")
+                        file.write(f"- {row['repository']}: {row['overall_score']:.2f}% ({row['traffic_light']})\n")
 
-                    f.write(f"\n## Bottom {top_n} Repositories by Health Score\n")
+                    file.write(f"\n## Bottom {top_n} Repositories by Health Score\n")
                     bottom = df.nsmallest(top_n, "overall_score")[["repository", "overall_score", "traffic_light"]]
                     for _, row in bottom.iterrows():
-                        f.write(f"- {row['repository']}: {row['overall_score']:.2f}% ({row['traffic_light']})\n")
+                        file.write(f"- {row['repository']}: {row['overall_score']:.2f}% ({row['traffic_light']})\n")
 
                 reports.append(summary_path)
 
