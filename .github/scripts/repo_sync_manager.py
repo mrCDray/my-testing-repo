@@ -1,6 +1,5 @@
 import logging
 from typing import Dict, Any, List, Optional
-
 import yaml
 from github import Github
 from github.Repository import Repository
@@ -144,7 +143,7 @@ class RepoSyncManager:
             try:
                 file = repo.get_contents("repository.yml")
                 repo.update_file("repository.yml", "Update repository configuration", config_content, file.sha)
-            except:
+            except Exception as e:
                 repo.create_file("repository.yml", "Initial repository configuration", config_content)
 
         except Exception as e:
