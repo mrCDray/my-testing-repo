@@ -1,7 +1,9 @@
 import os
-import yaml
 import sys
 import logging
+import json
+import yaml
+
 from github import Github, GithubException
 
 
@@ -106,7 +108,7 @@ def main():
     try:
         # Read GitHub event data to get changed file
         with open(github_event_path, mode="r", encoding="utf-8") as f:
-            import json
+
 
             event_data = json.load(f)
 
