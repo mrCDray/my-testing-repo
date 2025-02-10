@@ -1,9 +1,9 @@
 import os
 import sys
 import argparse
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict
 
 import pandas as pd
 from tqdm import tqdm
@@ -153,7 +153,6 @@ class GitHubOrgHealthCheck:
             metrics["required_files_score"] = (weighted_sum / total_weight * 100) if total_weight > 0 else 0
 
             # Check security features
-            security_config = self.config["security_requirements"]
             try:
                 security_info = repo.get_security_and_analysis()
                 metrics["security_scanning"] = (
@@ -219,7 +218,7 @@ class GitHubOrgHealthCheck:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(self.check_single_repo, repo): repo for repo in repos}
 
-            for future in tqdm(concurrent.futures.as_completed(futures), total=len(repos)):
+            for future in tqdm(as_completed(futures), total=len(repos)):
                 result = future.result()
                 if result:
                     results.append(result)
