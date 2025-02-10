@@ -101,13 +101,13 @@ class RepositoryUpdater:
 def get_changed_files():
     """Get the list of changed files from the environment and Git."""
     changed_files = []
-    
+
     # First try to get files from CHANGED_FILES environment variable
     changed_files_env = os.environ.get("CHANGED_FILES")
     if changed_files_env:
-        changed_files.extend([f.strip() for f in changed_files_env.split('\n') if f.strip()])
+        changed_files.extend([f.strip() for f in changed_files_env.split("\n") if f.strip()])
         logging.info(f"Files from CHANGED_FILES env: {changed_files}")
-    
+
     # Fallback to event payload if available
     if not changed_files:
         event_path = os.environ.get("GITHUB_EVENT_PATH")
@@ -116,7 +116,7 @@ def get_changed_files():
                 with open(event_path, mode="r", encoding="utf-8") as f:
                     event_data = json.load(f)
                     logging.info(f"Processing event data for changes")
-                    
+
                     # Handle push event specifically
                     if "commits" in event_data:
                         for commit in event_data["commits"]:
@@ -129,14 +129,16 @@ def get_changed_files():
     # Remove duplicates and filter for repository config files
     unique_files = list(set(changed_files))
     config_files = [
-        f for f in unique_files 
-        if f.startswith("repositories/") 
+        f
+        for f in unique_files
+        if f.startswith("repositories/")
         and f.endswith("/repository.yml")
         and os.path.exists(os.path.join(os.environ.get("GITHUB_WORKSPACE", ""), f))
     ]
-    
+
     logging.info(f"Final list of repository config files to process: {config_files}")
     return config_files
+
 
 def main():
     # Configure logging
