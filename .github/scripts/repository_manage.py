@@ -99,50 +99,44 @@ class RepositoryUpdater:
 
 
 def get_changed_files():
-    """Get the list of changed files from the GitHub event."""
-    event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if not event_path:
-        logging.error("GITHUB_EVENT_PATH environment variable is not set")
-        raise ValueError("GITHUB_EVENT_PATH environment variable is not set")
+    """Get the list of changed files from the environment and Git."""
+    changed_files = []
+    
+    # First try to get files from CHANGED_FILES environment variable
+    changed_files_env = os.environ.get("CHANGED_FILES")
+    if changed_files_env:
+        changed_files.extend([f.strip() for f in changed_files_env.split('\n') if f.strip()])
+        logging.info(f"Files from CHANGED_FILES env: {changed_files}")
+    
+    # Fallback to event payload if available
+    if not changed_files:
+        event_path = os.environ.get("GITHUB_EVENT_PATH")
+        if event_path:
+            try:
+                with open(event_path, mode="r", encoding="utf-8") as f:
+                    event_data = json.load(f)
+                    logging.info(f"Processing event data for changes")
+                    
+                    # Handle push event specifically
+                    if "commits" in event_data:
+                        for commit in event_data["commits"]:
+                            changed_files.extend(commit.get("modified", []))
+                            changed_files.extend(commit.get("added", []))
+                            changed_files.extend(commit.get("renamed", []))
+            except Exception as e:
+                logging.warning(f"Error reading event data: {e}")
 
-    try:
-        with open(event_path, mode="r", encoding="utf-8") as f:
-            event_data = json.load(f)
-            logging.info(f"GitHub Event Data: {json.dumps(event_data, indent=2)}")
-
-        # Get the list of changed files
-        changed_files = []
-
-        # Check commits for changed files
-        if "commits" in event_data:
-            for commit in event_data["commits"]:
-                # Add modified, added, and renamed files
-                modified = commit.get("modified", [])
-                added = commit.get("added", [])
-                renamed = commit.get("renamed", [])
-
-                logging.info(f"Commit {commit.get('id', 'unknown')}:")
-                logging.info(f"  Modified files: {modified}")
-                logging.info(f"  Added files: {added}")
-                logging.info(f"  Renamed files: {renamed}")
-
-                changed_files.extend(modified)
-                changed_files.extend(added)
-                changed_files.extend(renamed)
-
-        # Remove duplicates
-        unique_files = list(set(changed_files))
-        logging.info(f"All changed files: {unique_files}")
-
-        # Check for repository configuration files
-        config_files = [f for f in unique_files if f.startswith("repositories/") and f.endswith("/repository.yml")]
-        logging.info(f"Matched repository configuration files: {config_files}")
-
-        return unique_files
-    except Exception as e:
-        logging.error(f"Error reading GitHub event data: {e}")
-        raise
-
+    # Remove duplicates and filter for repository config files
+    unique_files = list(set(changed_files))
+    config_files = [
+        f for f in unique_files 
+        if f.startswith("repositories/") 
+        and f.endswith("/repository.yml")
+        and os.path.exists(os.path.join(os.environ.get("GITHUB_WORKSPACE", ""), f))
+    ]
+    
+    logging.info(f"Final list of repository config files to process: {config_files}")
+    return config_files
 
 def main():
     # Configure logging
@@ -177,15 +171,12 @@ def main():
             for f in files:
                 logging.info(f"  File: {f}")
 
-        # Get changed files
-        changed_files = get_changed_files()
-
-        # Filter for repository configuration files
-        config_files = [f for f in changed_files if f.startswith("repositories/") and f.endswith("/repository.yml")]
+        # Get changed files directly
+        config_files = get_changed_files()
 
         if not config_files:
-            logging.error("No repository configuration files were changed")
-            sys.exit(1)
+            logging.warning("No repository configuration files were found in changes")
+            sys.exit(0)
 
         updater = RepositoryUpdater(github_token, github_org)
 
