@@ -93,6 +93,7 @@ class RepositoryCreator:
                         return repo
                     except Exception as e:
                         self.logger.error(f"Error creating repository {repo_name}: {e}")
+                        return None
 
         except GithubException as e:
             self.logger.error(f"GitHub API error while creating repository {repo_name}: {e}")
