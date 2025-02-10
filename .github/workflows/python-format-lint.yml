@@ -30,9 +30,9 @@ jobs:
 
     - name: Run Black Formatter on Scripts
       run: | 
-        # Format all python files in .github/scripts and .github/tests
-        black --line-length=120 .github/scripts/*.py
-        black --line-length=120 .github/tests/*.py
+        # Format all python files in scripts and tests
+        black --line-length=120 scripts/*.py
+        black --line-length=120 tests/*.py
         
     - name: Commit Black Formatting Changes in Pull Request
       if: github.event_name == 'pull_request'
@@ -46,7 +46,7 @@ jobs:
           git push -u origin $branch_ref
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add .github/scripts/*.py .github/tests/*.py
+          git add scripts/*.py tests/*.py
           git commit -m "Apply Black formatting to Python scripts and tests"
           git checkout -b temp-pr
           git checkout $branch_ref
@@ -63,16 +63,16 @@ jobs:
         if [[ -n "$(git status --porcelain)" ]]; then
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add .github/scripts/*.py .github/tests/*.py
+          git add scripts/*.py tests/*.py
           git commit -m "Apply Black formatting to Python scripts and tests"
           git push
         fi
   
     - name: Lint implementation code
       run: |
-        pylint --rcfile=.github/.pylintrc .github/scripts/*.py
+        pylint --rcfile=.pylintrc scripts/*.py
 
     - name: Lint test code
       run: |
-        pylint --rcfile=.github/.test-pylintrc .github/tests/*.py
+        pylint --rcfile=.test-pylintrc tests/*.py
 

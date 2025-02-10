@@ -40,4 +40,4 @@ jobs:
           GITHUB_EVENT_BEFORE: ${{ github.event.before }}
           GITHUB_SHA: ${{ github.sha }}
         run: |
-          python .github/scripts/team_manage_membership.py
+          python scripts/team_manage_membership.py

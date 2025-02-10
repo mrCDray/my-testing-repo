@@ -50,7 +50,7 @@ jobs:
           GITHUB_ORGANIZATION: ${{ github.repository_owner }}
           REPOSITORY_NAME: ${{ inputs.repository_name }}
           GITHUB_WORKSPACE: ${{ github.workspace }}
-        run: python .github/scripts/repository_creation.py
+        run: python scripts/repository_creation.py
 
       - name: Commit and Push Changes
         run: |
@@ -103,4 +103,4 @@ jobs:
           GITHUB_WORKSPACE: ${{ github.workspace }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
           CHANGED_FILES: ${{ env.CHANGED_FILES }}
-        run: python .github/scripts/repository_manage.py
+        run: python scripts/repository_manage.py

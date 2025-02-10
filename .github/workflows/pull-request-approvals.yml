@@ -45,5 +45,5 @@ jobs:
           GITHUB_ORGANIZATION: ${{ github.repository_owner }}
           TEAM_NAME: 'Team-Test-Creation-A'  # Replace with your team name
         run: | 
-          python .github/scripts/pr_review_manager.py
+          python scripts/pr_review_manager.py
         

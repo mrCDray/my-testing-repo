@@ -42,7 +42,7 @@ jobs:
     - name: Create config if not exists
       run: |
         if [ ! -f "repo_health_config.yaml" ]; then
-          python .github/scripts/repo_health_check.py --init-config
+          python scripts/repo_health_check.py --init-config
         fi
         
     - name: Run health check
@@ -50,7 +50,7 @@ jobs:
         GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         ORG_NAME: ${{ github.repository_owner }}
       run: |
-        python .github/scripts/repo_health_check.py
+        python scripts/repo_health_check.py
         
     - name: Upload reports
       uses: actions/upload-artifact@v4

@@ -34,4 +34,4 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           ORG_NAME: ${{ github.repository_owner }}
         run: |
-          python .github/scripts/repositories_sync.py
+          python scripts/repositories_sync.py
