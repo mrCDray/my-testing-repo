@@ -1,7 +1,7 @@
 name: Repository Sync
 on:
-  schedule:
-    - cron: '0 0 * * *'  # Run daily at midnight
+  # schedule:
+  #   - cron: '0 0 * * *'  # Run daily at midnight
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
