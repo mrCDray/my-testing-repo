@@ -102,11 +102,13 @@ def get_changed_files():
     """Get the list of changed files from the GitHub event."""
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if not event_path:
+        logging.error("GITHUB_EVENT_PATH environment variable is not set")
         raise ValueError("GITHUB_EVENT_PATH environment variable is not set")
 
     try:
         with open(event_path, mode="r", encoding="utf-8") as f:
             event_data = json.load(f)
+            logging.info(f"GitHub Event Data: {json.dumps(event_data, indent=2)}")
 
         # Get the list of changed files
         changed_files = []
@@ -115,17 +117,47 @@ def get_changed_files():
         if "commits" in event_data:
             for commit in event_data["commits"]:
                 # Add modified, added, and renamed files
-                changed_files.extend(commit.get("modified", []))
-                changed_files.extend(commit.get("added", []))
-                changed_files.extend(commit.get("renamed", []))
+                modified = commit.get("modified", [])
+                added = commit.get("added", [])
+                renamed = commit.get("renamed", [])
+                
+                logging.info(f"Commit {commit.get('id', 'unknown')}:")
+                logging.info(f"  Modified files: {modified}")
+                logging.info(f"  Added files: {added}")
+                logging.info(f"  Renamed files: {renamed}")
+                
+                changed_files.extend(modified)
+                changed_files.extend(added)
+                changed_files.extend(renamed)
 
-        return list(set(changed_files))  # Remove duplicates
+        # Remove duplicates
+        unique_files = list(set(changed_files))
+        logging.info(f"All changed files: {unique_files}")
+        
+        # Check for repository configuration files
+        config_files = [f for f in unique_files if f.startswith("repositories/") and f.endswith("/repository.yml")]
+        logging.info(f"Matched repository configuration files: {config_files}")
+        
+        return unique_files
     except Exception as e:
         logging.error(f"Error reading GitHub event data: {e}")
         raise
 
 
 def main():
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)]
+    )
+
+    # Log environment variables (excluding sensitive data)
+    logging.info("Environment Variables:")
+    logging.info(f"GITHUB_WORKSPACE: {os.environ.get('GITHUB_WORKSPACE')}")
+    logging.info(f"GITHUB_EVENT_PATH: {os.environ.get('GITHUB_EVENT_PATH')}")
+    logging.info(f"GITHUB_ORGANIZATION: {os.environ.get('GITHUB_ORGANIZATION')}")
+
     # Get environment variables
     github_token = os.environ.get("GITHUB_TOKEN")
     github_org = os.environ.get("GITHUB_ORGANIZATION")
@@ -136,6 +168,15 @@ def main():
         sys.exit(1)
 
     try:
+        # List contents of workspace directory
+        logging.info("Workspace contents:")
+        for root, dirs, files in os.walk(workspace):
+            logging.info(f"Directory: {root}")
+            for d in dirs:
+                logging.info(f"  Dir: {d}")
+            for f in files:
+                logging.info(f"  File: {f}")
+
         # Get changed files
         changed_files = get_changed_files()
 
