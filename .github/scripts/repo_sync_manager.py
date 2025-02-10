@@ -1,8 +1,9 @@
-import os
-import yaml
 import logging
-from github import Github
 from typing import Dict, Any, List, Optional
+
+import yaml
+from github import Github
+from github.Repository import Repository
 
 
 class RepoSyncManager:
@@ -15,10 +16,10 @@ class RepoSyncManager:
     def _load_default_config(self) -> Dict[str, Any]:
         """Load default repository configuration"""
         try:
-            with open("default_repository.yml", "r") as f:
-                return yaml.safe_load(f)
-        except Exception as e:
-            self.logger.error(f"Error loading default config: {str(e)}")
+            with open("default_repository.yml", mode="r", encoding="utf-8") as file:
+                return yaml.safe_load(file)
+        except (OSError, yaml.YAMLError) as error:
+            self.logger.error(f"Error loading default config: {str(error)}")
             raise
 
     def create_repository(
@@ -114,16 +115,17 @@ class RepoSyncManager:
         try:
             self.org.get_repo(repo_name)
             return True
-        except:
+        except Exception as error:
+            self.logger.debug(f"Repository check failed: {str(error)}")
             return False
 
-    def _get_repository_config(self, repo) -> Dict[str, Any]:
+    def _get_repository_config(self, repo: Repository) -> Dict[str, Any]:
         """Get repository configuration from repository.yml"""
         try:
             config_file = repo.get_contents("repository.yml")
             return yaml.safe_load(config_file.decoded_content)
-        except:
-            # If config doesn't exist, return default config
+        except Exception as error:
+            self.logger.debug(f"Config file not found, using defaults: {str(error)}")
             return self.default_config.copy()
 
     def _merge_configs(self, target: Dict[str, Any], source: Dict[str, Any]) -> None:
@@ -216,24 +218,59 @@ class RepoSyncManager:
 
         return changes
 
-    def _sync_branch_protection(self, repo, rulesets: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _sync_branch_protection(self, repo: Repository, rulesets: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Sync branch protection rules"""
         changes = {}
-
-        for ruleset in rulesets:
-            # Implementation for updating branch protection rules
-            # This would need to be customized based on your specific requirements
-            pass
-
+        try:
+            for rule in rulesets:
+                branch_pattern = rule.get("pattern")
+                if not branch_pattern:
+                    continue
+                    
+                protection_settings = {
+                    "required_status_checks": rule.get("required_status_checks", None),
+                    "enforce_admins": rule.get("enforce_admins", True),
+                    "required_pull_request_reviews": rule.get("required_reviews", None),
+                    "restrictions": rule.get("restrictions", None)
+                }
+                
+                repo.get_branch(branch_pattern).edit_protection(**protection_settings)
+                changes[branch_pattern] = "protection rules updated"
+                
+        except Exception as error:
+            self.logger.error(f"Error updating branch protection: {str(error)}")
+        
         return changes
 
-    def _sync_custom_properties(self, repo, properties: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _sync_custom_properties(self, repo: Repository, properties: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Sync custom properties"""
         changes = {}
-
-        for prop in properties:
-            # Implementation for updating custom properties
-            # This would need to be customized based on your specific requirements
-            pass
-
+        try:
+            for property_config in properties:
+                property_name = property_config.get("name")
+                if not property_name:
+                    continue
+                    
+                # Note: This is a placeholder for the actual implementation
+                # GitHub's API for custom properties might require specific handling
+                self.logger.info(f"Would set custom property {property_name} for {repo.name}")
+                changes[property_name] = "property update simulated"
+                
+        except Exception as error:
+            self.logger.error(f"Error updating custom properties: {str(error)}")
+        
         return changes
+
+    def _apply_repository_config(self, repo: Repository, config: Dict[str, Any]) -> None:
+        """Apply initial configuration to newly created repository"""
+        try:
+            self._sync_repo_settings(repo, config.get("repository", {}))
+            if "security" in config:
+                self._sync_security_settings(repo, config["security"])
+            if "rulesets" in config:
+                self._sync_branch_protection(repo, config["rulesets"])
+            if "custom_properties" in config:
+                self._sync_custom_properties(repo, config["custom_properties"])
+        except Exception as error:
+            self.logger.error(f"Error applying repository config: {str(error)}")
+            raise
