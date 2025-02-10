@@ -84,7 +84,7 @@ class ConfigManager:
 
 
 class GitHubOrgHealthCheck:
-    def __init__(self, token: str, org_name: str, config_path: str = "repo_health_config.yaml"):
+    def __init__(self, token: str, org_name: str, config_path: str = "repo_health_config.yml"):
         """
         Initialize the health checker with GitHub token, organization name, and config.
         Args:
@@ -305,7 +305,7 @@ if __name__ == "__main__":
     # Just create config and exit if --init-config is specified
     if args.init_config:
         ConfigManager().create_default_config()
-        print("Created default configuration file: repo_health_config.yaml")
+        print("Created default configuration file: repo_health_config.yml")
         sys.exit(0)
 
     # Validate required parameters
