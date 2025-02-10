@@ -25,7 +25,7 @@ class RepositoryUpdater:
     def load_repository_config(self, config_path):
         """Load repository configuration from the specified path."""
         try:
-            with open(config_path, mode="r", encoding="uft-8") as file:
+            with open(config_path, mode="r", encoding="utf-8") as file:
                 config = yaml.safe_load(file)
                 return config.get("repository", {})
         except (FileNotFoundError, yaml.YAMLError) as e:
@@ -164,15 +164,6 @@ def main():
         sys.exit(1)
 
     try:
-        # List contents of workspace directory
-        logging.info("Workspace contents:")
-        for root, dirs, files in os.walk(workspace):
-            logging.info(f"Directory: {root}")
-            for d in dirs:
-                logging.info(f"  Dir: {d}")
-            for f in files:
-                logging.info(f"  File: {f}")
-
         # Get changed files directly
         config_files = get_changed_files()
 
