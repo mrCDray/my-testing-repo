@@ -5,7 +5,7 @@ repository:
     enableVulnerabilityAlerts: true
     enableAutomatedSecurityFixes: true
   visibility: private
-  has_issues: false
+  has_issues: true
   has_projects: true
   has_wiki: true
   default_branch: main
