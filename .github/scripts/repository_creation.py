@@ -62,7 +62,7 @@ class RepositoryCreator:
 
         except Exception as e:
             self.logger.error(f"Error creating repository configuration: {e}")
-            raise
+            return None
 
     def create_github_repository(self, repo_name, config):
         """Create a new GitHub repository with the specified configuration."""
