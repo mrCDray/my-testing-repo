@@ -4,9 +4,11 @@ import sys
 import logging
 from github import Github, GithubException
 
+
 class IndentDumper(yaml.Dumper):
     def increase_indent(self, flow=False, indentless=False):
         return super().increase_indent(flow, False)
+
 
 class RepositoryCreator:
     def __init__(self, github_token, organization):
@@ -22,13 +24,13 @@ class RepositoryCreator:
     def load_default_config(self, repository_name):
         """Load the default repository configuration and set the repository name."""
         try:
-            with open("default_repository.yml", mode="r", encoding= "uft-8") as file:
+            with open("default_repository.yml", mode="r", encoding="uft-8") as file:
                 config = yaml.safe_load(file)
                 repo_config = config.get("repository", {})
-                
+
                 # Set the actual repository name
                 repo_config["name"] = repository_name
-                
+
                 return repo_config
         except (FileNotFoundError, yaml.YAMLError) as e:
             self.logger.error(f"Error loading default configuration: {e}")
@@ -52,7 +54,7 @@ class RepositoryCreator:
                     sort_keys=False,
                     Dumper=IndentDumper,
                     default_flow_style=False,
-                    indent=2
+                    indent=2,
                 )
 
             self.logger.info(f"Created repository configuration at {config_file_path}")
@@ -73,9 +75,7 @@ class RepositoryCreator:
             except GithubException:
                 # Create new repository
                 repo = self.org.create_repo(
-                    name=repo_name,
-                    private=config.get("visibility", "private") == "private",
-                    auto_init=True
+                    name=repo_name, private=config.get("visibility", "private") == "private", auto_init=True
                 )
                 self.logger.info(f"Created new repository {repo_name}")
 
@@ -100,7 +100,7 @@ class RepositoryCreator:
                 allow_rebase_merge=config.get("allow_rebase_merge", True),
                 allow_auto_merge=config.get("allow_auto_merge", False),
                 delete_branch_on_merge=config.get("delete_branch_on_merge", True),
-                allow_update_branch=config.get("allow_update_branch", True)
+                allow_update_branch=config.get("allow_update_branch", True),
             )
 
             # Apply security settings
@@ -120,6 +120,7 @@ class RepositoryCreator:
         except Exception as e:
             self.logger.warning(f"Could not apply all repository settings: {e}")
 
+
 def main():
     # Get environment variables
     github_token = os.environ.get("GITHUB_TOKEN")
@@ -133,19 +134,20 @@ def main():
 
     try:
         creator = RepositoryCreator(github_token, github_org)
-        
+
         # Load default configuration and set repository name
         config = creator.load_default_config(repo_name)
-        
+
         # Create GitHub repository
         creator.create_github_repository(repo_name, config)
-        
+
         # Create repository configuration file
         creator.create_repository_config(repo_name, config, workspace)
-        
+
     except Exception as e:
         logging.error(f"Fatal error: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

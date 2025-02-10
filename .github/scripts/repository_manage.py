@@ -4,9 +4,11 @@ import sys
 import logging
 from github import Github, GithubException
 
+
 class IndentDumper(yaml.Dumper):
     def increase_indent(self, flow=False, indentless=False):
         return super().increase_indent(flow, False)
+
 
 class RepositoryUpdater:
     def __init__(self, github_token, organization):
@@ -34,14 +36,14 @@ class RepositoryUpdater:
         try:
             # Get existing repository
             repo = self.org.get_repo(repo_name)
-            
+
             # Verify repository name matches config
             if config.get("name") != repo_name:
                 raise ValueError("Repository name change is not allowed")
-            
+
             # Update repository settings
             self._update_repository_settings(repo, config)
-            
+
             self.logger.info(f"Updated repository {repo_name}")
             return repo
 
@@ -66,7 +68,7 @@ class RepositoryUpdater:
                 allow_rebase_merge=config.get("allow_rebase_merge", repo.allow_rebase_merge),
                 allow_auto_merge=config.get("allow_auto_merge", repo.allow_auto_merge),
                 delete_branch_on_merge=config.get("delete_branch_on_merge", repo.delete_branch_on_merge),
-                allow_update_branch=config.get("allow_update_branch", repo.allow_update_branch)
+                allow_update_branch=config.get("allow_update_branch", repo.allow_update_branch),
             )
 
             # Update security settings
@@ -87,15 +89,16 @@ class RepositoryUpdater:
             self.logger.warning(f"Could not update all repository settings: {e}")
             raise
 
+
 def main():
     # Get environment variables
     github_token = os.environ.get("GITHUB_TOKEN")
     github_org = os.environ.get("GITHUB_ORGANIZATION")
     workspace = os.environ.get("GITHUB_WORKSPACE", os.getcwd())
-    
+
     # Get changed file path from GitHub event
     github_event_path = os.environ.get("GITHUB_EVENT_PATH")
-    
+
     if not all([github_token, github_org, github_event_path]):
         logging.error("Missing required environment variables")
         sys.exit(1)
@@ -104,35 +107,37 @@ def main():
         # Read GitHub event data to get changed file
         with open(github_event_path, mode="r", encoding="utf-8") as f:
             import json
+
             event_data = json.load(f)
-        
+
         # Find changed repository configuration file
         changed_files = event_data.get("push", {}).get("files", [])
         config_file = None
         repo_name = None
-        
+
         for file in changed_files:
             file_path = file.get("filename", "")
             if file_path.startswith("repositories/") and file_path.endswith("/repository.yml"):
                 config_file = os.path.join(workspace, file_path)
                 repo_name = file_path.split("/")[1]
                 break
-        
+
         if not config_file or not repo_name:
             logging.error("No repository configuration file found in changes")
             sys.exit(1)
-        
+
         updater = RepositoryUpdater(github_token, github_org)
-        
+
         # Load and validate configuration
         config = updater.load_repository_config(config_file)
-        
+
         # Update GitHub repository
         updater.update_github_repository(repo_name, config)
-        
+
     except Exception as e:
         logging.error(f"Fatal error: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
