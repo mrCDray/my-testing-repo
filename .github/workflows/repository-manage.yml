@@ -1,31 +1,41 @@
-name: Manage Repository Configuration
+name: Repository Management
 
 on:
   workflow_dispatch:
     inputs:
       repository_name:
-        description: 'Repository Name (optional, uses config or changed file path if not specified)'
+        description: 'Repository Name (required for creation, leave empty for updates)'
         required: false
         type: string
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - create
+          - update
+        default: 'create'
   push:
     paths:
-      - 'default_repository.yml'
       - 'repositories/*/repository.yml'
 
 permissions:
   contents: write
 
 jobs:
-  manage-repository:
+  create-repository:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'create' && inputs.repository_name != ''
     runs-on: ubuntu-latest
     environment: cloud-platform
     
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       
-      - uses: actions/create-github-app-token@v1
+      - name: Create GitHub App Token
+        uses: actions/create-github-app-token@v1
         id: app-token
         with:
           app-id: ${{ vars.APP_ID }}
@@ -42,17 +52,54 @@ jobs:
           python -m pip install --upgrade pip
           pip install PyGithub PyYAML
 
-      - name: Run Repository Configuration Script
+      - name: Create Repository
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GITHUB_ORGANIZATION: ${{ github.repository_owner }}
-          REPOSITORY_NAME: ${{ inputs.repository_name || '' }}
-        run: python .github/scripts/repository_manage.py
+          REPOSITORY_NAME: ${{ inputs.repository_name }}
+        run: python .github/scripts/create_repository.py
 
       - name: Commit and Push Changes
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
           git add repositories/
-          git commit -m "Update repository configurations" || echo "No changes to commit"
+          git commit -m "Create repository configuration for ${{ inputs.repository_name }}" || echo "No changes to commit"
           git push
+
+  update-repository:
+    if: |
+      github.event_name == 'push' || 
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'update')
+    runs-on: ubuntu-latest
+    environment: cloud-platform
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Create GitHub App Token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_KEY }}
+          owner: ${{ github.repository_owner }}
+          
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install PyGithub PyYAML
+
+      - name: Update Repository
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_ORGANIZATION: ${{ github.repository_owner }}
+        run: python .github/scripts/update_repository.py
