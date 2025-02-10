@@ -4,9 +4,11 @@ import logging
 import yaml
 from github import Github, GithubException
 
+
 class IndentDumper(yaml.Dumper):
     def increase_indent(self, flow=False, indentless=False):
         return super().increase_indent(flow, False)
+
 
 class RepositoryCreator:
     def __init__(self, github_token, organization):
@@ -25,10 +27,10 @@ class RepositoryCreator:
             with open("default_repository.yml", mode="r", encoding="utf-8") as file:
                 config = yaml.safe_load(file)
                 repo_config = config.get("repository", {})
-                
+
                 # Set the actual repository name
                 repo_config["name"] = repository_name
-                
+
                 return repo_config
         except (FileNotFoundError, yaml.YAMLError) as e:
             self.logger.error(f"Error loading default configuration: {e}")
@@ -67,7 +69,7 @@ class RepositoryCreator:
         try:
             # Initialize repo variable
             repo = None
-            
+
             # Check if repository already exists
             try:
                 existing_repo = self.org.get_repo(repo_name)
@@ -77,12 +79,10 @@ class RepositoryCreator:
                 # Only proceed if the repository doesn't exist (404 error)
                 if e.status != 404:
                     raise e
-                
+
                 # Create new repository
                 repo = self.org.create_repo(
-                    name=repo_name,
-                    private=config.get("visibility", "private") == "private",
-                    auto_init=True
+                    name=repo_name, private=config.get("visibility", "private") == "private", auto_init=True
                 )
                 self.logger.info(f"Created new repository {repo_name}")
 
@@ -147,6 +147,7 @@ class RepositoryCreator:
             self.logger.warning(f"Could not apply all repository settings: {e}")
             # Don't raise the exception here as some settings may have been applied successfully
 
+
 def main():
     # Get environment variables
     github_token = os.environ.get("GITHUB_TOKEN")
@@ -160,20 +161,21 @@ def main():
 
     try:
         creator = RepositoryCreator(github_token, github_org)
-        
+
         # Load default configuration and set repository name
         config = creator.load_default_config(repo_name)
-        
+
         # Create GitHub repository
         repo = creator.create_github_repository(repo_name, config)
-        
+
         # Only create configuration file if repository was created successfully
         if repo:
             creator.create_repository_config(repo_name, config, workspace)
-        
+
     except Exception as e:
         logging.error(f"Fatal error: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
