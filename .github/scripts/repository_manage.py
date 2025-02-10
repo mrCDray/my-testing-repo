@@ -3,14 +3,11 @@ import sys
 import logging
 import json
 import yaml
-
 from github import Github, GithubException
-
 
 class IndentDumper(yaml.Dumper):
     def increase_indent(self, flow=False, indentless=False):
         return super().increase_indent(flow, False)
-
 
 class RepositoryUpdater:
     def __init__(self, github_token, organization):
@@ -26,7 +23,7 @@ class RepositoryUpdater:
     def load_repository_config(self, config_path):
         """Load repository configuration from the specified path."""
         try:
-            with open(config_path, mode="r", encoding="utf-8") as file:
+            with open(config_path, mode="r", encoding="uft-8") as file:
                 config = yaml.safe_load(file)
                 return config.get("repository", {})
         except (FileNotFoundError, yaml.YAMLError) as e:
@@ -38,14 +35,14 @@ class RepositoryUpdater:
         try:
             # Get existing repository
             repo = self.org.get_repo(repo_name)
-
+            
             # Verify repository name matches config
             if config.get("name") != repo_name:
                 raise ValueError("Repository name change is not allowed")
-
+            
             # Update repository settings
             self._update_repository_settings(repo, config)
-
+            
             self.logger.info(f"Updated repository {repo_name}")
             return repo
 
@@ -70,15 +67,22 @@ class RepositoryUpdater:
                 allow_rebase_merge=config.get("allow_rebase_merge", repo.allow_rebase_merge),
                 allow_auto_merge=config.get("allow_auto_merge", repo.allow_auto_merge),
                 delete_branch_on_merge=config.get("delete_branch_on_merge", repo.delete_branch_on_merge),
-                allow_update_branch=config.get("allow_update_branch", repo.allow_update_branch),
+                allow_update_branch=config.get("allow_update_branch", repo.allow_update_branch)
             )
 
             # Update security settings
             security_config = config.get("security", {})
             if security_config.get("enableVulnerabilityAlerts", False):
-                repo.enable_vulnerability_alert()
+                try:
+                    repo.enable_vulnerability_alert()
+                except Exception as e:
+                    self.logger.warning(f"Could not enable vulnerability alerts: {e}")
+
             if security_config.get("enableAutomatedSecurityFixes", False):
-                repo.enable_automated_security_fixes()
+                try:
+                    repo.enable_automated_security_fixes()
+                except Exception as e:
+                    self.logger.warning(f"Could not enable automated security fixes: {e}")
 
             # Update topics
             topics = config.get("topics", [])
@@ -91,54 +95,80 @@ class RepositoryUpdater:
             self.logger.warning(f"Could not update all repository settings: {e}")
             raise
 
+def get_changed_files():
+    """Get the list of changed files from the GitHub event."""
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if not event_path:
+        raise ValueError("GITHUB_EVENT_PATH environment variable is not set")
+
+    try:
+        with open(event_path, mode='r', encoding="utf-8") as f:
+            event_data = json.load(f)
+            
+        # Get the list of changed files
+        changed_files = []
+        
+        # Check commits for changed files
+        if "commits" in event_data:
+            for commit in event_data["commits"]:
+                # Add modified, added, and renamed files
+                changed_files.extend(commit.get("modified", []))
+                changed_files.extend(commit.get("added", []))
+                changed_files.extend(commit.get("renamed", []))
+        
+        return list(set(changed_files))  # Remove duplicates
+    except Exception as e:
+        logging.error(f"Error reading GitHub event data: {e}")
+        raise
 
 def main():
     # Get environment variables
     github_token = os.environ.get("GITHUB_TOKEN")
     github_org = os.environ.get("GITHUB_ORGANIZATION")
-    workspace = os.environ.get("GITHUB_WORKSPACE", os.getcwd())
+    workspace = os.environ.get("GITHUB_WORKSPACE")
 
-    # Get changed file path from GitHub event
-    github_event_path = os.environ.get("GITHUB_EVENT_PATH")
-
-    if not all([github_token, github_org, github_event_path]):
+    if not all([github_token, github_org, workspace]):
         logging.error("Missing required environment variables")
         sys.exit(1)
 
     try:
-        # Read GitHub event data to get changed file
-        with open(github_event_path, mode="r", encoding="utf-8") as f:
-
-            event_data = json.load(f)
-
-        # Find changed repository configuration file
-        changed_files = event_data.get("push", {}).get("files", [])
-        config_file = None
-        repo_name = None
-
-        for file in changed_files:
-            file_path = file.get("filename", "")
-            if file_path.startswith("repositories/") and file_path.endswith("/repository.yml"):
-                config_file = os.path.join(workspace, file_path)
-                repo_name = file_path.split("/")[1]
-                break
-
-        if not config_file or not repo_name:
-            logging.error("No repository configuration file found in changes")
+        # Get changed files
+        changed_files = get_changed_files()
+        
+        # Filter for repository configuration files
+        config_files = [f for f in changed_files if f.startswith("repositories/") and f.endswith("/repository.yml")]
+        
+        if not config_files:
+            logging.error("No repository configuration files were changed")
             sys.exit(1)
 
         updater = RepositoryUpdater(github_token, github_org)
-
-        # Load and validate configuration
-        config = updater.load_repository_config(config_file)
-
-        # Update GitHub repository
-        updater.update_github_repository(repo_name, config)
-
+        
+        # Process each changed configuration file
+        for config_file in config_files:
+            try:
+                # Extract repository name from path (repositories/{repo_name}/repository.yml)
+                repo_name = config_file.split('/')[1]
+                
+                # Full path to the configuration file
+                config_path = os.path.join(workspace, config_file)
+                
+                logging.info(f"Processing changes for repository: {repo_name}")
+                
+                # Load and validate configuration
+                config = updater.load_repository_config(config_path)
+                
+                # Update GitHub repository
+                updater.update_github_repository(repo_name, config)
+                
+            except Exception as e:
+                logging.error(f"Error processing repository {repo_name}: {e}")
+                # Continue processing other repositories if there are any
+                continue
+        
     except Exception as e:
         logging.error(f"Fatal error: {e}")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

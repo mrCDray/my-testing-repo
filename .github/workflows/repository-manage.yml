@@ -4,17 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       repository_name:
-        description: 'Repository Name (required for creation, leave empty for updates)'
-        required: false
-        type: string
-      action:
-        description: 'Action to perform'
+        description: 'Repository Name (for new repository creation)'
         required: true
-        type: choice
-        options:
-          - create
-          - update
-        default: 'create'
+        type: string
   push:
     paths:
       - 'repositories/*/repository.yml'
@@ -24,7 +16,7 @@ permissions:
 
 jobs:
   create-repository:
-    if: github.event_name == 'workflow_dispatch' && inputs.action == 'create' && inputs.repository_name != ''
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: cloud-platform
     
@@ -57,7 +49,8 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GITHUB_ORGANIZATION: ${{ github.repository_owner }}
           REPOSITORY_NAME: ${{ inputs.repository_name }}
-        run: python .github/scripts/repository_creation.py
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+        run: python .github/scripts/create_repository.py
 
       - name: Commit and Push Changes
         run: |
@@ -68,9 +61,7 @@ jobs:
           git push
 
   update-repository:
-    if: |
-      github.event_name == 'push' || 
-      (github.event_name == 'workflow_dispatch' && inputs.action == 'update')
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: cloud-platform
     
@@ -102,4 +93,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GITHUB_ORGANIZATION: ${{ github.repository_owner }}
-        run: python .github/scripts/repository_manage.py
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+        run: python .github/scripts/update_repository.py
