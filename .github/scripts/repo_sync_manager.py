@@ -136,18 +136,21 @@ class RepoSyncManager:
                 target[key] = value
 
     def _create_repository_config_file(self, repo, config: Dict[str, Any]) -> None:
-        """Create or update repository.yml config file"""
+        """Create repository.yml config file if it doesn't exist"""
         try:
-            config_content = yaml.dump(config, default_flow_style=False)
-
+            # Check if file already exists
             try:
-                file = repo.get_contents("repository.yml")
-                repo.update_file("repository.yml", "Update repository configuration", config_content, file.sha)
-            except Exception as e:
+                repo.get_contents("repository.yml")
+                self.logger.debug("repository.yml already exists, skipping creation")
+                return
+            except Exception:
+                # File doesn't exist, create it
+                config_content = yaml.dump(config, default_flow_style=False)
                 repo.create_file("repository.yml", "Initial repository configuration", config_content)
+                self.logger.info("Created repository.yml file")
 
         except Exception as e:
-            self.logger.error(f"Error creating/updating config file: {str(e)}")
+            self.logger.error(f"Error creating config file: {str(e)}")
             raise
 
     def _sync_repository_with_config(self, repo, config: Dict[str, Any]) -> Dict[str, Any]:
