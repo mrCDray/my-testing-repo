@@ -106,7 +106,6 @@ class RepositoryCreator:
             raise
         return None
 
-
     def _apply_initial_rulesets(self, repo, rulesets):
         """Apply initial rulesets to newly created repository"""
         try:
@@ -114,17 +113,16 @@ class RepositoryCreator:
                 ruleset_name = ruleset_config.get("name")
                 if not ruleset_name:
                     continue
-                    
+
                 # Configure and create ruleset
                 ruleset_params = self.ruleset_manager.configure_ruleset(repo, ruleset_config)
                 repo.create_ruleset(**ruleset_params)
-                
+
                 self.logger.info(f"Created ruleset {ruleset_name} for repository {repo.name}")
-                
+
         except Exception as e:
             self.logger.error(f"Error applying initial rulesets: {str(e)}")
             raise
-
 
     def _apply_repository_settings(self, repo, config):
         """Apply initial settings to the newly created repository."""
