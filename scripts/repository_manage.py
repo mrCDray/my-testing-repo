@@ -1,14 +1,92 @@
 import os
 import sys
+from typing import Dict, Any, List
 import logging
 import json
 import yaml
-from github import Github, GithubException
+from github import Github
 
 
 class IndentDumper(yaml.Dumper):
     def increase_indent(self, flow=False, indentless=False):
         return super().increase_indent(flow, False)
+
+
+class RulesetManager:
+    """Manages repository rulesets including branch and tag rules"""
+    
+    def __init__(self, logger):
+        self.logger = logger
+
+    def configure_ruleset(self, repo, ruleset_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Configure a single ruleset with all rules"""
+        try:
+            name = ruleset_config.get("name")
+            target = ruleset_config.get("target", "branch")
+            enforcement = ruleset_config.get("enforcement", "active")
+            
+            ruleset_params = {
+                "name": name,
+                "target": target,
+                "enforcement": enforcement,
+                "bypass_actors": ruleset_config.get("bypass_actors", []),
+                "conditions": self._prepare_conditions(ruleset_config.get("conditions", {})),
+                "rules": self._prepare_rules(ruleset_config.get("rules", []))
+            }
+            
+            return ruleset_params
+            
+        except Exception as e:
+            self.logger.error(f"Error configuring ruleset {name}: {str(e)}")
+            raise
+
+    def _prepare_conditions(self, conditions: Dict[str, Any]) -> Dict[str, Any]:
+        """Prepare ruleset conditions"""
+        prepared_conditions = {}
+        
+        if "ref_name" in conditions:
+            prepared_conditions["ref_name"] = {
+                "include": conditions["ref_name"].get("include", []),
+                "exclude": conditions["ref_name"].get("exclude", [])
+            }
+            
+        return prepared_conditions
+
+    def _prepare_rules(self, rules: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Prepare ruleset rules with their parameters"""
+        prepared_rules = []
+        
+        for rule in rules:
+            rule_type = rule.get("type")
+            if not rule_type:
+                continue
+                
+            prepared_rule = {"type": rule_type}
+            
+            if "parameters" in rule:
+                prepared_rule["parameters"] = self._get_rule_parameters(rule_type, rule["parameters"])
+                
+            prepared_rules.append(prepared_rule)
+            
+        return prepared_rules
+
+    def _get_rule_parameters(self, rule_type: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Get parameters for specific rule types"""
+        if rule_type == "pull_request":
+            return {
+                "dismiss_stale_reviews_on_push": params.get("dismiss_stale_reviews_on_push", True),
+                "require_code_owner_review": params.get("require_code_owner_review", True),
+                "require_last_push_approval": params.get("require_last_push_approval", True),
+                "required_approving_review_count": params.get("required_approving_review_count", 1),
+                "required_review_thread_resolution": params.get("required_review_thread_resolution", True)
+            }
+        elif rule_type == "required_status_checks":
+            return {
+                "strict_required_status_checks_policy": params.get("strict_required_status_checks_policy", True),
+                "required_status_checks": params.get("required_status_checks", [])
+            }
+        # Add other rule type parameters as needed
+        return params
 
 
 class RepositoryUpdater:
@@ -21,6 +99,7 @@ class RepositoryUpdater:
             handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler("repository_update.log")],
         )
         self.logger = logging.getLogger(__name__)
+        self.ruleset_manager = RulesetManager(self.logger)
 
     def load_repository_config(self, config_path):
         """Load repository configuration from the specified path."""
@@ -32,27 +111,67 @@ class RepositoryUpdater:
             self.logger.error(f"Error loading repository configuration: {e}")
             raise
 
-    def update_github_repository(self, repo_name, config):
-        """Update an existing GitHub repository with new configuration."""
-        try:
-            # Get existing repository
-            repo = self.org.get_repo(repo_name)
 
+    def update_repository_rules(self, repo, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Update repository rules and protection settings"""
+        changes = {}
+        
+        try:
+            if "rulesets" in config:
+                for ruleset_config in config["rulesets"]:
+                    ruleset_name = ruleset_config.get("name")
+                    if not ruleset_name:
+                        continue
+                        
+                    # Configure ruleset
+                    ruleset_params = self.ruleset_manager.configure_ruleset(repo, ruleset_config)
+                    
+                    # Apply ruleset
+                    try:
+                        existing_ruleset = next(
+                            (r for r in repo.get_rulesets() if r.name == ruleset_name),
+                            None
+                        )
+                        
+                        if existing_ruleset:
+                            existing_ruleset.edit(**ruleset_params)
+                            changes[f"ruleset_{ruleset_name}"] = "updated"
+                        else:
+                            repo.create_ruleset(**ruleset_params)
+                            changes[f"ruleset_{ruleset_name}"] = "created"
+                            
+                    except Exception as e:
+                        self.logger.error(f"Error applying ruleset {ruleset_name}: {str(e)}")
+                        changes[f"ruleset_{ruleset_name}"] = f"error: {str(e)}"
+                        
+            return changes
+            
+        except Exception as e:
+            self.logger.error(f"Error updating repository rules: {str(e)}")
+            return {"error": str(e)}
+
+
+    def update_github_repository(self, repo_name, config):
+        try:
+            repo = self.org.get_repo(repo_name)
+            
             # Verify repository name matches config
             if config.get("name") != repo_name:
                 raise ValueError("Repository name change is not allowed")
-
-            # Update repository settings
-            self._update_repository_settings(repo, config)
-
+                
+            changes = {}
+            
+            # Update basic settings
+            changes.update(self._update_repository_settings(repo, config))
+            
+            # Update rules and protection settings
+            changes.update(self.update_repository_rules(repo, config))
+            
             self.logger.info(f"Updated repository {repo_name}")
-            return repo
-
-        except GithubException as e:
-            self.logger.error(f"Error accessing repository {repo_name}: {e}")
-            raise
+            return changes
+            
         except Exception as e:
-            self.logger.error(f"Error updating repository {repo_name}: {e}")
+            self.logger.error(f"Error updating repository {repo_name}: {str(e)}")
             raise
 
     def _update_repository_settings(self, repo, config):
