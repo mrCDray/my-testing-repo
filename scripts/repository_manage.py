@@ -123,7 +123,7 @@ class RepositoryUpdater:
                         continue
 
                     # Configure ruleset
-                    ruleset_params = self.ruleset_manager.configure_ruleset(repo, ruleset_config)
+                    ruleset_params = self.ruleset_manager.configure_ruleset(ruleset_config)
 
                     # Apply ruleset
                     try:
