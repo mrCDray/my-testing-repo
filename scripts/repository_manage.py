@@ -18,7 +18,7 @@ class RulesetManager:
     def __init__(self, logger):
         self.logger = logger
 
-    def configure_ruleset(self, repo, ruleset_config: Dict[str, Any]) -> Dict[str, Any]:
+    def configure_ruleset(self, ruleset_config: Dict[str, Any]) -> Dict[str, Any]:
         """Configure a single ruleset with all rules"""
         try:
             name = ruleset_config.get("name")
@@ -80,7 +80,7 @@ class RulesetManager:
                 "required_approving_review_count": params.get("required_approving_review_count", 1),
                 "required_review_thread_resolution": params.get("required_review_thread_resolution", True),
             }
-        elif rule_type == "required_status_checks":
+        if rule_type == "required_status_checks":
             return {
                 "strict_required_status_checks_policy": params.get("strict_required_status_checks_policy", True),
                 "required_status_checks": params.get("required_status_checks", []),

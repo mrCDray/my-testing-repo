@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Dict, Any, List
 import logging
 import yaml
 from github import Github, GithubException
@@ -8,6 +9,83 @@ from github import Github, GithubException
 class IndentDumper(yaml.Dumper):
     def increase_indent(self, flow=False, indentless=False):
         return super().increase_indent(flow, False)
+
+
+class RulesetManager:
+    """Manages repository rulesets including branch and tag rules"""
+    
+    def __init__(self, logger):
+        self.logger = logger
+
+    def configure_ruleset(self, repo, ruleset_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Configure a single ruleset with all rules"""
+        try:
+            name = ruleset_config.get("name")
+            target = ruleset_config.get("target", "branch")
+            enforcement = ruleset_config.get("enforcement", "active")
+            
+            ruleset_params = {
+                "name": name,
+                "target": target,
+                "enforcement": enforcement,
+                "bypass_actors": ruleset_config.get("bypass_actors", []),
+                "conditions": self._prepare_conditions(ruleset_config.get("conditions", {})),
+                "rules": self._prepare_rules(ruleset_config.get("rules", []))
+            }
+            
+            return ruleset_params
+            
+        except Exception as e:
+            self.logger.error(f"Error configuring ruleset {name}: {str(e)}")
+            raise
+
+    def _prepare_conditions(self, conditions: Dict[str, Any]) -> Dict[str, Any]:
+        """Prepare ruleset conditions"""
+        prepared_conditions = {}
+        
+        if "ref_name" in conditions:
+            prepared_conditions["ref_name"] = {
+                "include": conditions["ref_name"].get("include", []),
+                "exclude": conditions["ref_name"].get("exclude", [])
+            }
+            
+        return prepared_conditions
+
+    def _prepare_rules(self, rules: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Prepare ruleset rules with their parameters"""
+        prepared_rules = []
+        
+        for rule in rules:
+            rule_type = rule.get("type")
+            if not rule_type:
+                continue
+                
+            prepared_rule = {"type": rule_type}
+            
+            if "parameters" in rule:
+                prepared_rule["parameters"] = self._get_rule_parameters(rule_type, rule["parameters"])
+                
+            prepared_rules.append(prepared_rule)
+            
+        return prepared_rules
+
+    def _get_rule_parameters(self, rule_type: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Get parameters for specific rule types"""
+        if rule_type == "pull_request":
+            return {
+                "dismiss_stale_reviews_on_push": params.get("dismiss_stale_reviews_on_push", True),
+                "require_code_owner_review": params.get("require_code_owner_review", True),
+                "require_last_push_approval": params.get("require_last_push_approval", True),
+                "required_approving_review_count": params.get("required_approving_review_count", 1),
+                "required_review_thread_resolution": params.get("required_review_thread_resolution", True)
+            }
+        elif rule_type == "required_status_checks":
+            return {
+                "strict_required_status_checks_policy": params.get("strict_required_status_checks_policy", True),
+                "required_status_checks": params.get("required_status_checks", [])
+            }
+        # Add other rule type parameters as needed
+        return params
 
 
 class RepositoryCreator:
@@ -20,6 +98,7 @@ class RepositoryCreator:
             handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler("repository_create.log")],
         )
         self.logger = logging.getLogger(__name__)
+        self.ruleset_manager = RulesetManager(self.logger)
 
     def load_default_config(self, repository_name):
         """Load the default repository configuration and set the repository name."""
