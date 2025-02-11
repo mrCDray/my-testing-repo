@@ -30,7 +30,7 @@ repository:
       enforcement: active
       conditions:
         ref_name:
-          include: ["main"]
+          include: ["ref/heads/main"]
           exclude: []
       rules:
         - type: pull_request
@@ -57,7 +57,7 @@ repository:
       enforcement: active
       conditions:
         ref_name:
-          include: ["develop"]
+          include: ["ref/heads/develop"]
           exclude: []
       rules:
         - type: deletion
@@ -79,7 +79,7 @@ repository:
       enforcement: active
       conditions:
         ref_name:
-          include: ["feature/*"]
+          include: ["ref/heads/feature/*"]
           exclude: []
       rules:
         - type: branch_name_pattern
@@ -94,36 +94,13 @@ repository:
             required_approving_review_count: 1
             required_review_thread_resolution: true
     
-    # Release tag protection
-    - name: release-tag-protection
-      target: tag
-      enforcement: active
-      conditions:
-        ref_name:
-          include: ["v*.*.*"]
-          exclude: ["v0.*.*"]
-      rules:
-        - type: creation
-          parameters:
-            signed_commits_required: true
-            
-        - type: update
-          parameters:
-            update_allows_fetch_and_merge: false
-            
-        - type: required_status_checks
-          parameters:
-            strict_required_status_checks_policy: true
-            required_status_checks:
-              - context: release-validation
-
     # Hotfix branch rules
     - name: hotfix-rules
       target: branch
       enforcement: active
       conditions:
         ref_name:
-          include: ["hotfix/*"]
+          include: [ref/heads/hotfix/*"]
           exclude: []
       rules:
         - type: pull_request
