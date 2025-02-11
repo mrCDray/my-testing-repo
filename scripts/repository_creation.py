@@ -22,7 +22,7 @@ class RulesetManager:
     def create_ruleset(self, repo, ruleset_params: dict) -> bool:
         """
         Create a ruleset using GitHub's REST API
-        
+
         Args:
             repo: GitHub repository object
             ruleset_params: Dictionary containing ruleset configuration
@@ -30,30 +30,25 @@ class RulesetManager:
         try:
             # Use the token passed through from initialization
             api_url = f"https://api.github.com/repos/{repo.organization.login}/{repo.name}/rulesets"
-            
+
             headers = {
                 "Accept": "application/vnd.github+json",
                 "Authorization": f"Bearer {self.token}",
-                "X-GitHub-Api-Version": "2022-11-28"
+                "X-GitHub-Api-Version": "2022-11-28",
             }
-            
-            response = requests.post(
-                api_url,
-                headers=headers,
-                json=ruleset_params
-            )
-            
+
+            response = requests.post(api_url, headers=headers, json=ruleset_params)
+
             if response.status_code not in (200, 201):
                 self.logger.error(f"Failed to create ruleset: {response.status_code} - {response.text}")
                 return False
-                
+
             self.logger.info(f"Successfully created ruleset {ruleset_params['name']}")
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Error creating ruleset: {str(e)}")
             return False
-
 
     def configure_ruleset(self, ruleset_config: Dict[str, Any]) -> Dict[str, Any]:
         """Configure a single ruleset with all rules"""
@@ -136,7 +131,7 @@ class RepositoryCreator:
             handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler("repository_create.log")],
         )
         self.logger = logging.getLogger(__name__)
-        self.ruleset_manager = RulesetManager(self.logger, self.github_token) 
+        self.ruleset_manager = RulesetManager(self.logger, self.github_token)
 
     def load_default_config(self, repository_name):
         """Load the default repository configuration and set the repository name."""
