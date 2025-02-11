@@ -36,7 +36,7 @@ class RulesetManager:
                 "Authorization": f"Bearer {self.token}",
                 "X-GitHub-Api-Version": "2022-11-28",
             }
-
+            self.logger.info("Ruleset: {ruleset_params}")
             response = requests.post(api_url, headers=headers, json=ruleset_params)
 
             if response.status_code not in (200, 201):
