@@ -15,44 +15,45 @@ class IndentDumper(yaml.Dumper):
 class RulesetManager:
     """Manages repository rulesets including branch and tag rules"""
 
-    def __init__(self, logger):
+    def __init__(self, logger, token):
         self.logger = logger
+        self.token = token
 
     def create_ruleset(self, repo, ruleset_params: dict) -> bool:
         """
         Create a ruleset using GitHub's REST API
-
+        
         Args:
             repo: GitHub repository object
             ruleset_params: Dictionary containing ruleset configuration
         """
         try:
-            # Get the authentication token from the repo's _Github instance
-            token = repo._Github._Github__requester._Requester__auth.token
-
-            # Prepare the API endpoint
+            # Use the token passed through from initialization
             api_url = f"https://api.github.com/repos/{repo.organization.login}/{repo.name}/rulesets"
-
-            # Prepare headers
+            
             headers = {
                 "Accept": "application/vnd.github+json",
-                "Authorization": f"Bearer {token}",
-                "X-GitHub-Api-Version": "2022-11-28",
+                "Authorization": f"Bearer {self.token}",
+                "X-GitHub-Api-Version": "2022-11-28"
             }
-
-            # Make the API request
-            response = requests.post(api_url, headers=headers, json=ruleset_params)
-
+            
+            response = requests.post(
+                api_url,
+                headers=headers,
+                json=ruleset_params
+            )
+            
             if response.status_code not in (200, 201):
                 self.logger.error(f"Failed to create ruleset: {response.status_code} - {response.text}")
                 return False
-
+                
             self.logger.info(f"Successfully created ruleset {ruleset_params['name']}")
             return True
-
+            
         except Exception as e:
             self.logger.error(f"Error creating ruleset: {str(e)}")
             return False
+
 
     def configure_ruleset(self, ruleset_config: Dict[str, Any]) -> Dict[str, Any]:
         """Configure a single ruleset with all rules"""
@@ -135,7 +136,7 @@ class RepositoryCreator:
             handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler("repository_create.log")],
         )
         self.logger = logging.getLogger(__name__)
-        self.ruleset_manager = RulesetManager(self.logger)
+        self.ruleset_manager = RulesetManager(self.logger, self.github_token) 
 
     def load_default_config(self, repository_name):
         """Load the default repository configuration and set the repository name."""
