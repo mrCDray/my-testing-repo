@@ -1,8 +1,8 @@
 import os
 import sys
 from typing import Dict, Any, List
-import requests
 import logging
+import requests
 import yaml
 from github import Github, GithubException
 
