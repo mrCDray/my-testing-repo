@@ -123,6 +123,7 @@ class RulesetManager:
 
 class RepositoryCreator:
     def __init__(self, github_token, organization):
+        self.github_token = github_token
         self.g = Github(github_token)
         self.org = self.g.get_organization(organization)
         logging.basicConfig(
