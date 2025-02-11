@@ -13,7 +13,7 @@ class IndentDumper(yaml.Dumper):
 
 class RulesetManager:
     """Manages repository rulesets including branch and tag rules"""
-    
+
     def __init__(self, logger):
         self.logger = logger
 
@@ -23,18 +23,18 @@ class RulesetManager:
             name = ruleset_config.get("name")
             target = ruleset_config.get("target", "branch")
             enforcement = ruleset_config.get("enforcement", "active")
-            
+
             ruleset_params = {
                 "name": name,
                 "target": target,
                 "enforcement": enforcement,
                 "bypass_actors": ruleset_config.get("bypass_actors", []),
                 "conditions": self._prepare_conditions(ruleset_config.get("conditions", {})),
-                "rules": self._prepare_rules(ruleset_config.get("rules", []))
+                "rules": self._prepare_rules(ruleset_config.get("rules", [])),
             }
-            
+
             return ruleset_params
-            
+
         except Exception as e:
             self.logger.error(f"Error configuring ruleset {name}: {str(e)}")
             raise
@@ -42,31 +42,31 @@ class RulesetManager:
     def _prepare_conditions(self, conditions: Dict[str, Any]) -> Dict[str, Any]:
         """Prepare ruleset conditions"""
         prepared_conditions = {}
-        
+
         if "ref_name" in conditions:
             prepared_conditions["ref_name"] = {
                 "include": conditions["ref_name"].get("include", []),
-                "exclude": conditions["ref_name"].get("exclude", [])
+                "exclude": conditions["ref_name"].get("exclude", []),
             }
-            
+
         return prepared_conditions
 
     def _prepare_rules(self, rules: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Prepare ruleset rules with their parameters"""
         prepared_rules = []
-        
+
         for rule in rules:
             rule_type = rule.get("type")
             if not rule_type:
                 continue
-                
+
             prepared_rule = {"type": rule_type}
-            
+
             if "parameters" in rule:
                 prepared_rule["parameters"] = self._get_rule_parameters(rule_type, rule["parameters"])
-                
+
             prepared_rules.append(prepared_rule)
-            
+
         return prepared_rules
 
     def _get_rule_parameters(self, rule_type: str, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -77,12 +77,12 @@ class RulesetManager:
                 "require_code_owner_review": params.get("require_code_owner_review", True),
                 "require_last_push_approval": params.get("require_last_push_approval", True),
                 "required_approving_review_count": params.get("required_approving_review_count", 1),
-                "required_review_thread_resolution": params.get("required_review_thread_resolution", True)
+                "required_review_thread_resolution": params.get("required_review_thread_resolution", True),
             }
         elif rule_type == "required_status_checks":
             return {
                 "strict_required_status_checks_policy": params.get("strict_required_status_checks_policy", True),
-                "required_status_checks": params.get("required_status_checks", [])
+                "required_status_checks": params.get("required_status_checks", []),
             }
         # Add other rule type parameters as needed
         return params
