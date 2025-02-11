@@ -194,7 +194,7 @@ class RepositoryCreator:
                     continue
 
                 # Configure and create ruleset
-                ruleset_params = self.ruleset_manager.configure_ruleset(repo, ruleset_config)
+                ruleset_params = self.ruleset_manager.configure_ruleset(ruleset_config)
                 repo.create_ruleset(**ruleset_params)
 
                 self.logger.info(f"Created ruleset {ruleset_name} for repository {repo.name}")
