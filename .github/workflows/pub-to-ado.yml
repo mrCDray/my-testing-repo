@@ -84,8 +84,8 @@ jobs:
       - name: Parse asset versions
         id: parse_versions
         run: |
-          # Function to extract version from asset name
-          parse_asset_version() {
+            # Function to extract version from asset name
+            parse_asset_version() {
             local asset_name="$1"
             local base_name=""
             local version=""
@@ -94,32 +94,51 @@ jobs:
             # Remove .jar extension if present
             asset_name=${asset_name%.jar}
             
+            # Debug output
+            echo "Processing asset: $asset_name"
+            
             if [[ $asset_name == *"-latest"* ]]; then
-              is_latest="true"
-              base_name=$(echo "$asset_name" | sed -E 's/-latest$//')
-              # Get version from the actual versioned file if available
-              for file in downloads/*; do
-                if [[ $file =~ ${base_name}-v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-                  version="${BASH_REMATCH[1]}"
-                  break
+                is_latest="true"
+                base_name=$(echo "$asset_name" | sed -E 's/-latest$//')
+                # Get version from the actual versioned file if available
+                for file in downloads/*; do
+                if [[ $file =~ ${base_name}-([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+                    version="${BASH_REMATCH[1]}"
+                    break
                 fi
-              done
+                done
+            # Match pattern like failsafe-IDCTPaymentsEngine-1.0.30
+            elif [[ $asset_name =~ ^(failsafe-[^-]+)-([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+                base_name="${BASH_REMATCH[1]}"
+                version="${BASH_REMATCH[2]}"
+                echo "Matched standard version pattern - Base: $base_name, Version: $version"
+            # Original version pattern with 'v' prefix
             elif [[ $asset_name =~ ^(.*)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-              base_name="${BASH_REMATCH[1]}"
-              version="${BASH_REMATCH[2]}"
+                base_name="${BASH_REMATCH[1]}"
+                version="${BASH_REMATCH[2]}"
+                echo "Matched v-prefix pattern - Base: $base_name, Version: $version"
+            else
+                echo "WARNING: Could not parse version from $asset_name"
+                return 1
             fi
             
+            echo "Final parsing - Base: $base_name, Version: $version, Is Latest: $is_latest"
             echo "$base_name|$version|$is_latest"
-          }
-          
-          # Process each asset and create a mapping file
-          echo "ASSET_MAPPING<<EOF" >> $GITHUB_OUTPUT
-          for asset in downloads/*; do
+            }
+            
+            # Process each asset and create a mapping file
+            echo "ASSET_MAPPING<<EOF" >> $GITHUB_OUTPUT
+            for asset in downloads/*; do
             filename=$(basename "$asset")
-            parsed=$(parse_asset_version "$filename")
-            echo "$filename|$parsed" >> $GITHUB_OUTPUT
-          done
-          echo "EOF" >> $GITHUB_OUTPUT
+            echo "Processing file: $filename"
+            if parsed=$(parse_asset_version "$filename"); then
+                echo "$filename|$parsed" >> $GITHUB_OUTPUT
+                echo "Successfully parsed: $filename|$parsed"
+            else
+                echo "Failed to parse: $filename"
+            fi
+            done
+            echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Set Azure DevOps PAT
         env:
