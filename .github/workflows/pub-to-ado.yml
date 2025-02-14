@@ -158,16 +158,14 @@ jobs:
         if: github.event.inputs.upload_to_ado != 'false'
         env:
           ASSET_MAPPING: ${{ steps.parse_versions.outputs.ASSET_MAPPING }}
-          ADO_TOKEN: ${{ secrets.ADO_FEED_PAT }}
+          AZURE_DEVOPS_EXT_PAT: ${{ secrets.ADO_FEED_PAT }}  # Changed from ADO_TOKEN
         run: |
-          export AZURE_DEVOPS_PAT=$ADO_TOKEN
-          az devops login
-
+          # Don't use az devops login/logout as it can cause PAT storage issues
           echo "$ASSET_MAPPING" | while IFS='|' read -r filename base_name version is_latest; do
             if [ -n "$base_name" ] && [ -n "$version" ]; then
-              echo "Publishing $filename (Name: $base_name, Version: $version)"
+              echo "Publishing $filename (Base: $base_name, Version: $version)"
               
-              # Upload the artifact
+              # Upload the artifact with explicit authentication
               az artifacts universal publish \
                 --organization "${{ vars.ADO_ORG }}" \
                 --project "${{ vars.ADO_PROJECT }}" \
@@ -178,25 +176,24 @@ jobs:
                 --path "downloads/$filename" \
                 --description "Published from GitHub Release $base_name"
               
-              # Update latest tag always as fix forward
-              echo "Updategin latest alias for $base_name"
-              az artifacts universal update \  
-                --organization "${{ vars.ADO_ORG }}" \ 
-                --project "${{ vars.ADO_PROJECT }}" \  
-                --feed "${{ vars.ADO_FEED }}" \  
-                --name "$base_name" \  
-                --version "$version" \  
-                --set-alias latest  \
-                --path "downloads/$filename" \
-                --desciption "Latest version from GitHub Release $base_name"
+              if [ $? -eq 0 ]; then
+                echo "Successfully published artifact. Updating latest tag..."
+                # Update latest tag if publish was successful
+                az artifacts universal update \
+                  --organization "${{ vars.ADO_ORG }}" \
+                  --project "${{ vars.ADO_PROJECT }}" \
+                  --feed "${{ vars.ADO_FEED }}" \
+                  --name "$base_name" \
+                  --version "$version" \
+                  --path "downloads/$filename" \
+                  --description "Latest version from GitHub Release $base_name" \
+                  --set-alias latest || echo "Warning: Failed to update latest tag"
+              else
+                echo "Failed to publish artifact"
+                exit 1
+              fi
+            else
+              echo "Error: Invalid mapping entry for $filename"
+              exit 1
             fi
           done
-          az devops logout
-
-#           WARNING: Failed to store PAT using keyring; falling back to file storage.
-# WARNING: You can clear the stored credential by running az devops logout.
-# WARNING: Refer https://aka.ms/azure-devops-cli-auth to know more on sign in with PAT.
-# Publishing failsafe-IDCTPaymentsEngine (Name: 1.0.30, Version: false)
-# ERROR: Failed to update Universal Packages tooling.
-#  TF400813: The user 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' is not authorized to access this resource.
-# Error: Process completed with exit code 1.
