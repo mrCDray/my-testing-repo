@@ -85,7 +85,7 @@ jobs:
         id: parse_versions
         run: |
           # Function to extract version from asset name
-            parse_asset_version() {
+          parse_asset_version() {
             local asset_name="$1"
             local base_name=""
             local version=""
@@ -97,38 +97,34 @@ jobs:
             # Debug output
             echo "Processing asset: $asset_name"
             
-            if [[ $asset_name == *"-latest"* ]]; then
-                is_latest="true"
-                base_name=$(echo "$asset_name" | sed -E 's/-latest$//')
-                # Get version from the actual versioned file if available
-                for file in downloads/*; do
-                if [[ $file =~ ${base_name}-([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-                    version="${BASH_REMATCH[1]}"
-                    break
-                fi
-                done
-            # Match pattern like name-name-1.0.30
-            elif [[ $asset_name =~ ^(failsafe-[^-]+)-([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-                base_name="${BASH_REMATCH[1]}"
-                version="${BASH_REMATCH[2]}"
-                echo "Matched standard version pattern - Base: $base_name, Version: $version"
-            # Version pattern with 'v' prefix
-            elif [[ $asset_name =~ ^(.*)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-                base_name="${BASH_REMATCH[1]}"
-                version="${BASH_REMATCH[2]}"
-                echo "Matched v-prefix pattern - Base: $base_name, Version: $version"
+            # Match pattern like failsafe-IDCTPaymentsEngine-1.0.30
+            if [[ $asset_name =~ ^(failsafe-[A-Za-z]+)-([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+                # Extract base name (everything before the last hyphen)
+                base_name=$(echo "$asset_name" | sed 's/-[0-9]\+\.[0-9]\+\.[0-9]\+$//')
+                # Extract version (everything after the last hyphen)
+                version=$(echo "$asset_name" | sed 's/.*-\([0-9]\+\.[0-9]\+\.[0-9]\+\)$/\1/')
+                
+                echo "Extracted components:"
+                echo "  Base name: $base_name"
+                echo "  Version: $version"
             else
                 echo "WARNING: Could not parse version from $asset_name"
                 return 1
             fi
             
+            # Verify we have both base_name and version
+            if [ -z "$base_name" ] || [ -z "$version" ]; then
+                echo "ERROR: Failed to extract base_name or version"
+                return 1
+            fi
+            
             echo "Final parsing - Base: $base_name, Version: $version, Is Latest: $is_latest"
             echo "$base_name|$version|$is_latest"
-            }
-            
-            # Process each asset and create a mapping file
-            echo "ASSET_MAPPING<<EOF" >> $GITHUB_OUTPUT
-            for asset in downloads/*; do
+          }
+          
+          # Process each asset and create a mapping file
+          echo "ASSET_MAPPING<<EOF" >> $GITHUB_OUTPUT
+          for asset in downloads/*; do
             filename=$(basename "$asset")
             echo "Processing file: $filename"
             if parsed=$(parse_asset_version "$filename"); then
@@ -136,9 +132,10 @@ jobs:
                 echo "Successfully parsed: $filename|$parsed"
             else
                 echo "Failed to parse: $filename"
+                exit 1
             fi
-            done
-            echo "EOF" >> $GITHUB_OUTPUT
+          done
+          echo "EOF" >> $GITHUB_OUTPUT
     
     ## TO DO when service prinicpal or other than PAT token needs to be used 
     # - name: Authenticate to Azure via OIDC  
