@@ -1,0 +1,169 @@
+name: Publish to ADO Artifacts
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      specific_version:
+        description: 'Specific version to upload (leave empty for latest)'
+        required: false
+        type: string
+      upload_to_ado:
+        description: 'Allow upload to ADO for manual version run'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: PUBLISH_TO_ADO
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get release info
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Function to get release info
+          get_release_info() {
+            local release="$1"
+            local assets=$(echo "$release" | jq -r '.assets[] | .name')
+            local release_id=$(echo "$release" | jq -r '.id')
+            local tag_name=$(echo "$release" | jq -r '.tag_name')
+            
+            echo "ASSETS<<EOF" >> $GITHUB_OUTPUT
+            echo "$assets" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "RELEASE_ID=$release_id" >> $GITHUB_OUTPUT
+            echo "RELEASE_TAG=$tag_name" >> $GITHUB_OUTPUT
+          }
+
+          if [ -n "${{ github.event.inputs.specific_version }}" ]; then
+            echo "Using manually specified version"
+            VERSION="${{ github.event.inputs.specific_version }}"
+            [[ $VERSION != v* ]] && VERSION="v$VERSION"
+            
+            RELEASE=$(curl -sH "Authorization: token $GITHUB_TOKEN" \
+                     "https://api.github.com/repos/${{ github.repository }}/releases/tags/$VERSION")
+            get_release_info "$RELEASE"
+
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            echo "Using triggered release version"
+            RELEASE=$(curl -sH "Authorization: token $GITHUB_TOKEN" \
+                     "https://api.github.com/repos/${{ github.repository }}/releases/${{ github.event.release.id }}")
+            get_release_info "$RELEASE"
+
+          else
+            echo "Fetching latest release"
+            RELEASE=$(curl -sH "Authorization: token $GITHUB_TOKEN" \
+                     "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+            get_release_info "$RELEASE"
+          fi
+
+      - name: Download release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.release.outputs.RELEASE_TAG }}
+        run: |
+          mkdir -p downloads
+          cd downloads
+          echo "Downloading assets for release $RELEASE_TAG"
+          gh release download $RELEASE_TAG -p "failsafe*.*"
+          echo "Downloaded assets:"
+          ls -la
+
+      - name: Parse asset versions
+        id: parse_versions
+        run: |
+          # Function to extract version from asset name
+          parse_asset_version() {
+            local asset_name="$1"
+            local base_name=""
+            local version=""
+            local is_latest="false"
+            
+            # Remove .jar extension if present
+            asset_name=${asset_name%.jar}
+            
+            if [[ $asset_name == *"-latest"* ]]; then
+              is_latest="true"
+              base_name=$(echo "$asset_name" | sed -E 's/-latest$//')
+              # Get version from the actual versioned file if available
+              for file in downloads/*; do
+                if [[ $file =~ ${base_name}-v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+                  version="${BASH_REMATCH[1]}"
+                  break
+                fi
+              done
+            elif [[ $asset_name =~ ^(.*)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+              base_name="${BASH_REMATCH[1]}"
+              version="${BASH_REMATCH[2]}"
+            fi
+            
+            echo "$base_name|$version|$is_latest"
+          }
+          
+          # Process each asset and create a mapping file
+          echo "ASSET_MAPPING<<EOF" >> $GITHUB_OUTPUT
+          for asset in downloads/*; do
+            filename=$(basename "$asset")
+            parsed=$(parse_asset_version "$filename")
+            echo "$filename|$parsed" >> $GITHUB_OUTPUT
+          done
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Set Azure DevOps PAT
+        env:
+          ADO_TOKEN: ${{ secrets.ADO_FEED_PAT }}
+        run: echo "AZURE_DEVOPS_PAT=$ADO_TOKEN" >> $GITHUB_ENV
+
+      - name: Install and configure Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          az extension add --name azure-devops
+          az extension update --name azure-devops
+          az devops configure --defaults organization="${{ vars.ADO_ORG }}" project="${{ vars.ADO_PROJECT }}"
+
+      - name: Publish to ADO
+        if: github.event.inputs.upload_to_ado != 'false'
+        env:
+          ASSET_MAPPING: ${{ steps.parse_versions.outputs.ASSET_MAPPING }}
+        run: |
+          echo "$ASSET_MAPPING" | while IFS='|' read -r filename base_name version is_latest; do
+            if [ -n "$base_name" ] && [ -n "$version" ]; then
+              echo "Publishing $filename (Name: $base_name, Version: $version)"
+              
+              # Upload the artifact
+              az artifacts universal publish \
+                --organization "${{ vars.ADO_ORG }}" \
+                --project "${{ vars.ADO_PROJECT }}" \
+                --scope project \
+                --feed "${{ vars.ADO_FEED }}" \
+                --name "$base_name" \
+                --version "$version" \
+                --path "downloads/$filename" \
+                --description "Published from GitHub Release"
+              
+              # Update latest tag if needed
+              if [ "$is_latest" = "true" ]; then
+                echo "Updating latest alias for $base_name"
+                az artifacts universal publish \
+                  --organization "${{ vars.ADO_ORG }}" \
+                  --project "${{ vars.ADO_PROJECT }}" \
+                  --feed "${{ vars.ADO_FEED }}" \
+                  --name "$base_name" \
+                  --version "latest" \
+                  --path "downloads/$filename" \
+                  --description "Latest version from GitHub Release"
+              fi
+            fi
+          done
