@@ -77,14 +77,14 @@ jobs:
           mkdir -p downloads
           cd downloads
           echo "Downloading assets for release $RELEASE_TAG"
-          gh release download $RELEASE_TAG -p "failsafe*.*"
+          gh release download $RELEASE_TAG -p 'failsafe*.*' -D .
           echo "Downloaded assets:"
           ls -la
 
       - name: Parse asset versions
         id: parse_versions
         run: |
-            # Function to extract version from asset name
+          # Function to extract version from asset name
             parse_asset_version() {
             local asset_name="$1"
             local base_name=""
@@ -107,12 +107,12 @@ jobs:
                     break
                 fi
                 done
-            # Match pattern like failsafe-IDCTPaymentsEngine-1.0.30
+            # Match pattern like name-name-1.0.30
             elif [[ $asset_name =~ ^(failsafe-[^-]+)-([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
                 base_name="${BASH_REMATCH[1]}"
                 version="${BASH_REMATCH[2]}"
                 echo "Matched standard version pattern - Base: $base_name, Version: $version"
-            # Original version pattern with 'v' prefix
+            # Version pattern with 'v' prefix
             elif [[ $asset_name =~ ^(.*)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
                 base_name="${BASH_REMATCH[1]}"
                 version="${BASH_REMATCH[2]}"
@@ -139,11 +139,13 @@ jobs:
             fi
             done
             echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Set Azure DevOps PAT
-        env:
-          ADO_TOKEN: ${{ secrets.ADO_FEED_PAT }}
-        run: echo "AZURE_DEVOPS_PAT=$ADO_TOKEN" >> $GITHUB_ENV
+    
+    ## TO DO when service prinicpal or other than PAT token needs to be used 
+    # - name: Authenticate to Azure via OIDC  
+    #   uses: azure/login@v2  
+    #   with:  
+    #     client-id: ${{ secrets.ADO_FEED_PAT }}  
+    #     allow-no-subscriptions: true
 
       - name: Install and configure Azure CLI
         run: |
@@ -156,7 +158,11 @@ jobs:
         if: github.event.inputs.upload_to_ado != 'false'
         env:
           ASSET_MAPPING: ${{ steps.parse_versions.outputs.ASSET_MAPPING }}
+          ADO_TOKEN: ${{ secrets.ADO_FEED_PAT }}
         run: |
+          export AZURE_DEVOPS_PAT=$ADO_TOKEN
+          az devops login
+
           echo "$ASSET_MAPPING" | while IFS='|' read -r filename base_name version is_latest; do
             if [ -n "$base_name" ] && [ -n "$version" ]; then
               echo "Publishing $filename (Name: $base_name, Version: $version)"
@@ -170,19 +176,27 @@ jobs:
                 --name "$base_name" \
                 --version "$version" \
                 --path "downloads/$filename" \
-                --description "Published from GitHub Release"
+                --description "Published from GitHub Release $base_name"
               
-              # Update latest tag if needed
-              if [ "$is_latest" = "true" ]; then
-                echo "Updating latest alias for $base_name"
-                az artifacts universal publish \
-                  --organization "${{ vars.ADO_ORG }}" \
-                  --project "${{ vars.ADO_PROJECT }}" \
-                  --feed "${{ vars.ADO_FEED }}" \
-                  --name "$base_name" \
-                  --version "latest" \
-                  --path "downloads/$filename" \
-                  --description "Latest version from GitHub Release"
-              fi
+              # Update latest tag always as fix forward
+              echo "Updategin latest alias for $base_name"
+              az artifacts universal update \  
+                --organization "${{ vars.ADO_ORG }}" \ 
+                --project "${{ vars.ADO_PROJECT }}" \  
+                --feed "${{ vars.ADO_FEED }}" \  
+                --name "$base_name" \  
+                --version "$version" \  
+                --set-alias latest  \
+                --path "downloads/$filename" \
+                --desciption "Latest version from GitHub Release $base_name"
             fi
           done
+          az devops logout
+
+#           WARNING: Failed to store PAT using keyring; falling back to file storage.
+# WARNING: You can clear the stored credential by running az devops logout.
+# WARNING: Refer https://aka.ms/azure-devops-cli-auth to know more on sign in with PAT.
+# Publishing failsafe-IDCTPaymentsEngine (Name: 1.0.30, Version: false)
+# ERROR: Failed to update Universal Packages tooling.
+#  TF400813: The user 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' is not authorized to access this resource.
+# Error: Process completed with exit code 1.
