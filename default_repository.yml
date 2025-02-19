@@ -80,8 +80,8 @@ repository:
       rules:
         - type: branch_name_pattern
           parameters:
-            name_pattern: "^feature/[A-Z][A-Za-z0-9-]+$"
-            name_pattern_type: "regular_expression"
+            pattern: "^feature/[A-Z][A-Za-z0-9-]+$"
+            operator: "regex"
             
         - type: pull_request
           parameters:
@@ -108,5 +108,5 @@ repository:
             
         - type: branch_name_pattern
           parameters:
-            name_pattern: "^hotfix/[A-Z]+-[0-9]+$"
-            name_pattern_type: "regular_expression"
+            pattern: "^hotfix/[A-Z]+-[0-9]+$"
+            operator: "regex"
