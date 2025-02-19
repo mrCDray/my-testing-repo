@@ -1,0 +1,98 @@
+repository:
+  name: test-repo-b
+  visibility: internal
+  topics: []
+  has_issues: true
+  has_projects: true
+  has_wiki: true
+  allow_squash_merge: true
+  allow_merge_commit: true
+  allow_rebase_merge: true
+  allow_auto_merge: false
+  delete_branch_on_merge: true
+  allow_update_branch: true
+  security:
+    enableVulnerabilityAlerts: true
+    enableAutomatedSecurityFixes: true
+  rulesets:
+    - name: main-branch-protection
+      target: branch
+      enforcement: active
+      conditions:
+        ref_name:
+          include:
+            - refs/heads/main
+            - refs/heads/master
+          exclude: []
+      rules:
+        - type: pull_request
+          parameters:
+            dismiss_stale_reviews_on_push: true
+            require_code_owner_review: true
+            require_last_push_approval: true
+            required_approving_review_count: 2
+            required_review_thread_resolution: true
+        - type: deletion
+        - type: required_status_checks
+          parameters:
+            strict_required_status_checks_policy: true
+            required_status_checks:
+              - context: ci-test
+              - context: security-scan
+        - type: required_linear_history
+        - type: required_signatures
+    - name: develop-branch-rules
+      target: branch
+      enforcement: active
+      conditions:
+        ref_name:
+          include:
+            - refs/heads/develop
+          exclude: []
+      rules:
+        - type: deletion
+        - type: pull_request
+          parameters:
+            dismiss_stale_reviews_on_push: true
+            require_code_owner_review: false
+            require_last_push_approval: true
+            required_approving_review_count: 1
+            required_review_thread_resolution: true
+    - name: feature-branch-pattern
+      target: branch
+      enforcement: active
+      conditions:
+        ref_name:
+          include:
+            - refs/heads/feature/*
+          exclude: []
+      rules:
+        - type: branch_name_pattern
+          parameters:
+            name_pattern: ^feature/[A-Z][A-Za-z0-9-]+$
+            name_pattern_type: regular_expression
+        - type: pull_request
+          parameters:
+            dismiss_stale_reviews_on_push: true
+            require_code_owner_review: false
+            required_approving_review_count: 1
+            required_review_thread_resolution: true
+    - name: hotfix-rules
+      target: branch
+      enforcement: active
+      conditions:
+        ref_name:
+          include:
+            - refs/heads/hotfix/*
+          exclude: []
+      rules:
+        - type: pull_request
+          parameters:
+            dismiss_stale_reviews_on_push: true
+            require_code_owner_review: true
+            required_approving_review_count: 2
+            required_review_thread_resolution: true
+        - type: branch_name_pattern
+          parameters:
+            name_pattern: ^hotfix/[A-Z]+-[0-9]+$
+            name_pattern_type: regular_expression
