@@ -30,7 +30,7 @@ repository:
       enforcement: active
       conditions:
         ref_name:
-          include: ["ref/heads/main"]
+          include: ["refs/heads/main", "refs/heads/master"]
           exclude: []
       rules:
         - type: pull_request
@@ -57,7 +57,7 @@ repository:
       enforcement: active
       conditions:
         ref_name:
-          include: ["ref/heads/develop"]
+          include: ["refs/heads/develop"]
           exclude: []
       rules:
         - type: deletion
@@ -79,7 +79,7 @@ repository:
       enforcement: active
       conditions:
         ref_name:
-          include: ["ref/heads/feature/*"]
+          include: ["refs/heads/feature/*"]
           exclude: []
       rules:
         - type: branch_name_pattern
@@ -100,7 +100,7 @@ repository:
       enforcement: active
       conditions:
         ref_name:
-          include: [ref/heads/hotfix/*"]
+          include: ["refs/heads/hotfix/*"]
           exclude: []
       rules:
         - type: pull_request
