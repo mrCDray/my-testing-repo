@@ -195,10 +195,7 @@ class RepositoryCreator:
 
                 # Create new repository
                 repo = self.org.create_repo(
-                    name=repo_name, 
-                    private=True,
-                    visibility=config.get("visibility", "private").lower(),
-                    auto_init=True
+                    name=repo_name, private=True, visibility=config.get("visibility", "private").lower(), auto_init=True
                 )
                 self.logger.info(f"Created new repository {repo_name}")
 
