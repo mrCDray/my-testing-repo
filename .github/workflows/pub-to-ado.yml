@@ -9,28 +9,6 @@ jobs:
   trigger-ado-pipeline:
     runs-on: ubuntu-latest
     steps:
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          
-      - name: Install Azure DevOps CLI extension
-        run: az extension add --name azure-devops
-          
-      - name: Set Azure DevOps organization and project
-        run: |
-          az devops configure --defaults organization=https://dev.azure.com/{organization} project={project}
-          
-      - name: Trigger Pipeline
-        id: trigger
-        run: |
-          RUN_DETAILS=$(az pipelines run --id {pipelineId} --branch main -o json)
-          RUN_ID=$(echo $RUN_DETAILS | jq -r '.id')
-          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-          echo "Pipeline triggered: Build $RUN_ID"
-
       - name: Monitor Pipeline Progress
         run: |
           RUN_ID=${{ steps.trigger.outputs.run_id }}
@@ -45,100 +23,123 @@ jobs:
               -H "Authorization: Bearer ${{ secrets.AZURE_TOKEN }}" \
               -H "Content-Type: application/json")
             
+            # Check if timeline is empty or null
+            if [[ $(echo "$TIMELINE" | jq -r '.records | length') -eq 0 || $(echo "$TIMELINE" | jq -r '.records') == "null" ]]; then
+              echo "No timeline records found or timeline is null"
+              return "inProgress"
+            fi
+            
             # Get overall pipeline details
             local PIPELINE_DETAILS=$(curl -s -X GET \
               "https://dev.azure.com/{organization}/{project}/_apis/build/builds/$RUN_ID?api-version=7.0" \
               -H "Authorization: Bearer ${{ secrets.AZURE_TOKEN }}" \
               -H "Content-Type: application/json")
             
-            local STATUS=$(echo "$PIPELINE_DETAILS" | jq -r '.status')
+            local STATUS=$(echo "$PIPELINE_DETAILS" | jq -r '.status // "inProgress"')
             local RESULT=$(echo "$PIPELINE_DETAILS" | jq -r '.result // "inProgress"')
             
             echo "Pipeline Status: $STATUS ($RESULT)"
             
-            # Process each stage
-            echo "$TIMELINE" | jq -c '.records[] | select(.type == "Stage")' | while read -r stage; do
-              local STAGE_NAME=$(echo $stage | jq -r '.name')
-              local STAGE_STATE=$(echo $stage | jq -r '.state')
-              local STAGE_RESULT=$(echo $stage | jq -r '.result // "pending"')
-              local STAGE_ID=$(echo $stage | jq -r '.id')
+            # First check for approval checkpoints
+            local APPROVAL_CHECK=$(echo "$TIMELINE" | jq -c '.records[]? | select(.type == "Checkpoint.Approval" and .state == "inProgress")')
+            
+            if [[ ! -z "$APPROVAL_CHECK" ]]; then
+              local APPROVAL_NAME=$(echo "$APPROVAL_CHECK" | jq -r '.name // "Approval Required"')
+              local APPROVAL_STAGE=$(echo "$TIMELINE" | jq -r --arg aid "$(echo "$APPROVAL_CHECK" | jq -r '.parentId')" \
+                '.records[]? | select(.id == $aid) | .name // "Unknown Stage"')
               
-              echo "Stage: $STAGE_NAME - State: $STAGE_STATE ($STAGE_RESULT)"
+              echo "⚠️ WARNING: Pipeline requires approval at checkpoint"
+              echo "Approval: $APPROVAL_NAME"
+              echo "Stage: $APPROVAL_STAGE"
+              echo "Please review and approve at: https://dev.azure.com/{organization}/{project}/_build/results?buildId=$RUN_ID"
+              exit 78  # Exit with warning status
+            fi
+            
+            # Process all records for monitoring
+            local HAS_FAILED=false
+            
+            echo "$TIMELINE" | jq -c '.records[]?' | while read -r record; do
+              if [[ -z "$record" ]]; then
+                continue
+              fi
               
-              # Get all jobs for this stage
-              echo "$TIMELINE" | jq -c --arg stageId "$STAGE_ID" \
-                '.records[] | select(.type == "Job" and .parentId == $stageId)' | while read -r job; do
-                local JOB_NAME=$(echo $job | jq -r '.name')
-                local JOB_STATE=$(echo $job | jq -r '.state')
-                local JOB_RESULT=$(echo $job | jq -r '.result // "pending"')
-                local JOB_ID=$(echo $job | jq -r '.id')
+              local TYPE=$(echo $record | jq -r '.type // "unknown"')
+              local NAME=$(echo $record | jq -r '.name // "unnamed"')
+              local STATE=$(echo $record | jq -r '.state // "unknown"')
+              local RESULT=$(echo $record | jq -r '.result // "pending"')
+              local ID=$(echo $record | jq -r '.id // "no-id"')
+              
+              # Handle different record types
+              if [[ "$TYPE" == "Phase" || "$TYPE" == "Stage" ]]; then
+                echo "Stage: $NAME - State: $STATE (Result: $RESULT)"
                 
-                echo "  Job: $JOB_NAME - State: $JOB_STATE ($JOB_RESULT)"
-                
-                # Check for pending approvals
-                if [[ "$JOB_STATE" == "pending" || "$STAGE_STATE" == "pending" ]]; then
-                  # Get approval status
-                  local APPROVALS=$(curl -s -X GET \
-                    "https://dev.azure.com/{organization}/{project}/_apis/pipelines/approvals?api-version=7.0" \
-                    -H "Authorization: Bearer ${{ secrets.AZURE_TOKEN }}" \
-                    -H "Content-Type: application/json")
-                  
-                  local PENDING_APPROVAL=$(echo "$APPROVALS" | jq -r --arg buildId "$RUN_ID" \
-                    '.value[] | select(.status == "pending" and .build.id == ($buildId | tonumber))')
-                  
-                  if [[ ! -z "$PENDING_APPROVAL" ]]; then
-                    local APPROVAL_TYPE=$(echo "$PENDING_APPROVAL" | jq -r '.type')
-                    local APPROVAL_INSTRUCTIONS=$(echo "$PENDING_APPROVAL" | jq -r '.instructions')
-                    
-                    echo "⚠️ WARNING: Pipeline requires approval"
-                    echo "Type: $APPROVAL_TYPE"
-                    echo "Instructions: $APPROVAL_INSTRUCTIONS"
-                    echo "Stage: $STAGE_NAME"
-                    echo "Job: $JOB_NAME"
-                    echo "Please review and approve at: https://dev.azure.com/{organization}/{project}/_build/results?buildId=$RUN_ID"
-                    exit 78  # Exit with warning status
-                  fi
+                if [[ "$RESULT" == "failed" ]]; then
+                  HAS_FAILED=true
                 fi
                 
-                # Get task details for failed jobs
-                if [[ "$JOB_RESULT" == "failed" ]]; then
-                  echo "    Failed Tasks:"
-                  echo "$TIMELINE" | jq -c --arg jobId "$JOB_ID" \
-                    '.records[] | select(.type == "Task" and .parentId == $jobId and .result == "failed")' | \
-                    while read -r task; do
-                    local TASK_NAME=$(echo $task | jq -r '.name')
-                    local TASK_ERROR=$(echo $task | jq -r '.issues[].message // "No error message available"')
-                    local TASK_LOG_URL=$(echo $task | jq -r '.log.url // "No log URL available"')
-                    echo "      - Task: $TASK_NAME"
-                    echo "        Error: $TASK_ERROR"
-                    echo "        Logs: $TASK_LOG_URL"
-                  done
+              elif [[ "$TYPE" == "Job" ]]; then
+                # Get parent name if possible
+                local PARENT_ID=$(echo $record | jq -r '.parentId // "none"')
+                local PARENT_NAME="unknown"
+                PARENT_NAME=$(echo "$TIMELINE" | jq -r --arg pid "$PARENT_ID" '.records[]? | select(.id == $pid) | .name // "unknown"')
+                
+                echo "  Job: $NAME (in $PARENT_NAME) - State: $STATE (Result: $RESULT)"
+                
+                if [[ "$RESULT" == "failed" ]]; then
+                  HAS_FAILED=true
                 fi
-              done
+                
+              elif [[ "$TYPE" == "Task" ]]; then
+                local PARENT_ID=$(echo $record | jq -r '.parentId // "none"')
+                echo "    Task: $NAME - State: $STATE (Result: $RESULT)"
+                
+                # Get log details if available
+                local LOG_URL=$(echo $record | jq -r '.log.url // "No log available"')
+                if [[ "$LOG_URL" != "No log available" && "$LOG_URL" != "null" ]]; then
+                  echo "      Log: $LOG_URL"
+                fi
+                
+                # Check for failures
+                if [[ "$RESULT" == "failed" ]]; then
+                  HAS_FAILED=true
+                  local ERROR_COUNT=$(echo $record | jq -r '.errorCount // 0')
+                  echo "      ❌ Task failed with $ERROR_COUNT errors"
+                fi
+              fi
             done
             
-            echo $STATUS
+            if [[ "$HAS_FAILED" == "true" ]]; then
+              echo "Pipeline has failed jobs or tasks"
+              return "failed"
+            fi
+            
+            # Return pipeline status for main loop control
+            return $STATUS
           }
           
           for ((i=1; i<=MAX_POLLS; i++)); do
             echo "Check $i/$MAX_POLLS"
             
-            STATUS=$(monitor_pipeline)
+            monitor_pipeline
+            PIPELINE_STATUS=$?
             
-            if [[ "$STATUS" == "completed" ]]; then
+            if [[ "$PIPELINE_STATUS" == "completed" ]]; then
               # Get final result
               FINAL_RESULT=$(curl -s -X GET \
                 "https://dev.azure.com/{organization}/{project}/_apis/build/builds/$RUN_ID?api-version=7.0" \
                 -H "Authorization: Bearer ${{ secrets.AZURE_TOKEN }}" \
-                -H "Content-Type: application/json" | jq -r '.result')
+                -H "Content-Type: application/json" | jq -r '.result // "unknown"')
               
               if [[ "$FINAL_RESULT" == "succeeded" ]]; then
                 echo "✅ Pipeline completed successfully"
                 exit 0
               else
-                echo "❌ Pipeline failed"
+                echo "❌ Pipeline failed with result: $FINAL_RESULT"
                 exit 1
               fi
+            elif [[ "$PIPELINE_STATUS" == "failed" ]]; then
+              echo "❌ Pipeline has failed jobs or tasks"
+              exit 1
             fi
             
             echo "Waiting $POLL_INTERVAL_SECONDS seconds before next check..."
