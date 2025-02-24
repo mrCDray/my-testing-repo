@@ -1,194 +1,124 @@
-name: Publish to ADO Artifacts
+name: Monitor Azure DevOps Pipeline Details
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [ main ]
   workflow_dispatch:
-    inputs:
-      specific_version:
-        description: 'Specific version to upload (leave empty for latest)'
-        required: false
-        type: string
-      upload_to_ado:
-        description: 'Allow upload to ADO for manual version run'
-        required: false
-        type: boolean
-        default: true
 
 jobs:
-  publish:
+  trigger-ado-pipeline:
     runs-on: ubuntu-latest
-    environment:
-      name: PUBLISH_TO_ADO
-    permissions:
-      id-token: write
-      contents: read
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Get release info
-        id: release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          
+      - name: Install Azure DevOps CLI extension
+        run: az extension add --name azure-devops
+          
+      - name: Set Azure DevOps organization and project
         run: |
-          # Function to get release info
-          get_release_info() {
-            local release="$1"
-            local assets=$(echo "$release" | jq -r '.assets[] | .name')
-            local release_id=$(echo "$release" | jq -r '.id')
-            local tag_name=$(echo "$release" | jq -r '.tag_name')
-            
-            echo "tag_name=$tag_name"
-            echo "assets=$assets"
-            echo "release_id=$release_id"
-
-            echo "ASSETS<<EOF" >> $GITHUB_OUTPUT
-            echo "$assets" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-            echo "RELEASE_ID=$release_id" >> $GITHUB_OUTPUT
-            echo "RELEASE_TAG=$tag_name" >> $GITHUB_OUTPUT
-          }
-
-          if [ -n "${{ github.event.inputs.specific_version }}" ]; then
-            echo "Using manually specified version"
-            VERSION="${{ github.event.inputs.specific_version }}"
-            [[ $VERSION != v* ]] && VERSION="v$VERSION"
-            
-            RELEASE=$(curl -sH "Authorization: token $GITHUB_TOKEN" \
-                     "https://api.github.com/repos/${{ github.repository }}/releases/tags/$VERSION")
-            get_release_info "$RELEASE"
-
-          elif [ "${{ github.event_name }}" = "release" ]; then
-            echo "Using triggered release version"
-            RELEASE=$(curl -sH "Authorization: token $GITHUB_TOKEN" \
-                     "https://api.github.com/repos/${{ github.repository }}/releases/${{ github.event.release.id }}")
-            get_release_info "$RELEASE"
-
-          else
-            echo "Fetching latest release"
-            RELEASE=$(curl -sH "Authorization: token $GITHUB_TOKEN" \
-                     "https://api.github.com/repos/${{ github.repository }}/releases/latest")
-            get_release_info "$RELEASE"
-          fi
-
-      - name: Download release assets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ steps.release.outputs.RELEASE_TAG }}
+          az devops configure --defaults organization=https://dev.azure.com/{organization} project={project}
+          
+      - name: Trigger Pipeline
+        id: trigger
         run: |
-          mkdir -p downloads
-          cd downloads
-          echo "Downloading assets for release $RELEASE_TAG"
-          gh release download $RELEASE_TAG -p 'failsafe*.*' -D .
-          echo "Downloaded assets:"
-          ls -la
+          RUN_DETAILS=$(az pipelines run --id {pipelineId} --branch main -o json)
+          RUN_ID=$(echo $RUN_DETAILS | jq -r '.id')
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "Pipeline triggered: Build $RUN_ID"
 
-      - name: Parse asset versions
-        id: parse_versions
+      - name: Monitor Pipeline Progress
         run: |
-          # Function to extract version from asset name
-          parse_asset_version() {
-            local asset_name="$1"
-            local base_name=""
-            local version=""
+          RUN_ID=${{ steps.trigger.outputs.run_id }}
+          TIMEOUT_MINUTES=30
+          POLL_INTERVAL_SECONDS=30
+          MAX_POLLS=$((TIMEOUT_MINUTES * 60 / POLL_INTERVAL_SECONDS))
+          
+          monitor_pipeline() {
+            local RESULT=$(az pipelines runs show --id $RUN_ID -o json)
+            local TIMELINE=$(az pipelines runs show --id $RUN_ID --detect false --query-timeline -o json)
             
-            # Remove .jar extension if present
-            asset_name=${asset_name%.jar}
-                        
-            # Match pattern like failsafe-IDCTPaymentsEngine-1.0.30
-            if [[ $asset_name =~ ^(failsafe-[A-Za-z]+)-([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-                # Extract base name (everything before the last hyphen)
-                base_name=$(echo "$asset_name" | sed 's/-[0-9]\+\.[0-9]\+\.[0-9]\+$//')
-                # Extract version (everything after the last hyphen)
-                version=$(echo "$asset_name" | sed 's/.*-\([0-9]\+\.[0-9]\+\.[0-9]\+\)$/\1/')
+            # Get overall pipeline status
+            local STATUS=$(echo $RESULT | jq -r '.status')
+            local RESULT_STRING=$(echo $RESULT | jq -r '.result // "null"')
+            
+            echo "Pipeline Status: $STATUS ($RESULT_STRING)"
+            
+            # Process each stage
+            echo "$TIMELINE" | jq -c '.records[] | select(.type == "Stage")' | while read -r stage; do
+              local STAGE_NAME=$(echo $stage | jq -r '.name')
+              local STAGE_STATE=$(echo $stage | jq -r '.state')
+              local STAGE_RESULT=$(echo $stage | jq -r '.result // "pending"')
+              
+              echo "Stage: $STAGE_NAME - State: $STAGE_STATE ($STAGE_RESULT)"
+              
+              # Process jobs within this stage
+              echo "$TIMELINE" | jq -c --arg stageName "$STAGE_NAME" \
+                '.records[] | select(.type == "Job" and .parentId == ($stageName))' | while read -r job; do
+                local JOB_NAME=$(echo $job | jq -r '.name')
+                local JOB_STATE=$(echo $job | jq -r '.state')
+                local JOB_RESULT=$(echo $job | jq -r '.result // "pending"')
                 
-            else
-                echo "WARNING: Could not parse version from $asset_name"
-                return 1
-            fi
+                echo "  Job: $JOB_NAME - State: $JOB_STATE ($JOB_RESULT)"
+                
+                # Check for approval wait
+                if [[ "$JOB_STATE" == "pending" ]]; then
+                  local APPROVAL_CHECK=$(az pipelines runs show --id $RUN_ID --detect false -o json | \
+                    jq -r '.approvals[] | select(.status == "pending") | .instructions // empty')
+                  
+                  if [[ ! -z "$APPROVAL_CHECK" ]]; then
+                    echo "⚠️ WARNING: Pipeline is waiting for approval:"
+                    echo "$APPROVAL_CHECK"
+                    echo "Pipeline monitoring stopped - manual intervention required"
+                    echo "Visit: https://dev.azure.com/{organization}/{project}/_build/results?buildId=$RUN_ID"
+                    exit 0
+                  fi
+                fi
+                
+                # Get task details for failed jobs
+                if [[ "$JOB_RESULT" == "failed" ]]; then
+                  echo "    Failed Tasks:"
+                  echo "$TIMELINE" | jq -c --arg jobId "$(echo $job | jq -r '.id')" \
+                    '.records[] | select(.type == "Task" and .parentId == ($jobId) and .result == "failed")' | \
+                    while read -r task; do
+                    local TASK_NAME=$(echo $task | jq -r '.name')
+                    local TASK_ERROR=$(echo $task | jq -r '.issues[].message // "No error message available"')
+                    echo "      - $TASK_NAME: $TASK_ERROR"
+                  done
+                fi
+              done
+            done
             
-            # Verify we have both base_name and version
-            if [ -z "$base_name" ] || [ -z "$version" ]; then
-                echo "ERROR: Failed to extract base_name or version"
-                return 1
-            fi
-            
-            echo "$base_name|$version"
+            # Return pipeline status for main loop control
+            echo $STATUS
           }
           
-          # Process each asset and create a mapping file
-          echo "ASSET_MAPPING<<EOF" >> $GITHUB_OUTPUT
-          for asset in downloads/*; do
-            filename=$(basename "$asset")
-            echo "Processing file: $filename"
-            if parsed=$(parse_asset_version "$filename"); then
-                echo "$filename|$parsed" >> $GITHUB_OUTPUT
-                echo "Successfully parsed: $filename|$parsed"
-            else
-                echo "Failed to parse: $filename"
-                exit 1
-            fi
-          done
-          echo "EOF" >> $GITHUB_OUTPUT
-    
-    ## TO DO when service prinicpal or other than PAT token needs to be used 
-    # - name: Authenticate to Azure via OIDC  
-    #   uses: azure/login@v2  
-    #   with:  
-    #     client-id: ${{ secrets.ADO_FEED_PAT }}  
-    #     allow-no-subscriptions: true
-
-      - name: Install and configure Azure CLI
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-          az extension add --name azure-devops
-          az extension update --name azure-devops
-          az devops configure --defaults organization="${{ vars.ADO_ORG }}" project="${{ vars.ADO_PROJECT }}"
-
-      - name: Publish to ADO
-        if: github.event.inputs.upload_to_ado != 'false'
-        env:
-          ASSET_MAPPING: ${{ steps.parse_versions.outputs.ASSET_MAPPING }}
-          AZURE_DEVOPS_EXT_PAT: ${{ secrets.ADO_FEED_PAT }}
-        run: |
-          echo "$ASSET_MAPPING" | while IFS='|' read -r filename base_name version; do
-          echo "File name: $filename has: "
-          echo "base_name=$base_name"
-          echo "version=$version"          
-            if [ -n "$base_name" ] && [ -n "$version" ]; then
-              echo "Publishing $filename (Base: $base_name, Version: $version)"
-                
-              # Upload the artifact with explicit authentication
-              az artifacts universal publish \
-                --organization "${{ vars.ADO_ORG }}" \
-                --project "${{ vars.ADO_PROJECT }}" \
-                --scope project \
-                --feed "${{ vars.ADO_FEED }}" \
-                --name "$base_name" \
-                --version "$version" \
-                --path "downloads/$filename" \
-                --description "Published from GitHub Release $base_name"
-                
-              if [ $? -eq 0 ]; then
-                echo "Successfully published artifact. Updating latest tag..."
-                # Update latest tag if publish was successful
-                az artifacts universal update \
-                  --organization "${{ vars.ADO_ORG }}" \
-                  --project "${{ vars.ADO_PROJECT }}" \
-                  --feed "${{ vars.ADO_FEED }}" \
-                  --name "$base_name" \
-                  --version "$version" \
-                  --path "downloads/$filename" \
-                  --description "Latest version from GitHub Release $base_name" \
-                  --set-alias latest || echo "Warning: Failed to update latest tag"
+          for ((i=1; i<=MAX_POLLS; i++)); do
+            echo "Check $i/$MAX_POLLS"
+            
+            STATUS=$(monitor_pipeline)
+            
+            if [[ "$STATUS" == "completed" ]]; then
+              echo "Pipeline execution finished"
+              
+              # Get final result
+              FINAL_RESULT=$(az pipelines runs show --id $RUN_ID -o json | jq -r '.result')
+              if [[ "$FINAL_RESULT" == "succeeded" ]]; then
+                echo "✅ Pipeline completed successfully"
+                exit 0
               else
-                echo "Failed to publish artifact"
+                echo "❌ Pipeline failed"
                 exit 1
               fi
-            else
-              echo "Error: Invalid mapping entry for $filename"
-              exit 1
             fi
+            
+            echo "Waiting $POLL_INTERVAL_SECONDS seconds before next check..."
+            sleep $POLL_INTERVAL_SECONDS
           done
+          
+          echo "⚠️ Timeout reached. Pipeline is still running."
+          exit 1

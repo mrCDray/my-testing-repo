@@ -51,8 +51,8 @@ repository:
         - type: required_linear_history
         - type: required_signatures
     
-    # Development branch rules
-    - name: develop-branch-rules
+    # Development branch protection
+    - name: develop-branch-protection
       target: branch
       enforcement: active
       conditions:
@@ -69,8 +69,8 @@ repository:
             required_approving_review_count: 1
             required_review_thread_resolution: true
                 
-    # Feature branch naming convention
-    - name: feature-branch-pattern
+    # Feature branch protection
+    - name: feature-branch-protection
       target: branch
       enforcement: active
       conditions:
@@ -90,8 +90,8 @@ repository:
             required_approving_review_count: 1
             required_review_thread_resolution: true
     
-    # Hotfix branch rules
-    - name: hotfix-rules
+    # Hotfix branch branch protection
+    - name: hotfix--branch-protection
       target: branch
       enforcement: active
       conditions:
