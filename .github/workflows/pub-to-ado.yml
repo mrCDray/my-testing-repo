@@ -1,8 +1,6 @@
 name: Trigger Azure DevOps Pipeline
-
 on:
   workflow_dispatch:
-
 jobs:
   trigger-ado-pipeline:
     runs-on: windows-latest
@@ -30,18 +28,14 @@ jobs:
           AZURE_DEVOPS_PROJECT: ${{ vars.AZURE_DEVOPS_PROJECT }}
           AZURE_DEVOPS_PIPELINE_ID: 7
         run: |
-          $token = (Get-AzAccessToken).token
-          Write-Host "Access Token: $token"
-
-          if (-not $token){
-            Write-Host " No Access Token Found??"
-          }
+          $token = (Get-AzAccessToken -ResourceUrl "499b84ac-1321-427f-aa17-267ca6975798").Token
+          Write-Host "Access Token retrieved successfully"
           
           $Params = @{
             OrganizationUrl = $env:AZURE_DEVOPS_ORG
             ProjectName = $env:AZURE_DEVOPS_PROJECT
-            PipelineId = $env:AZURE_PIPELINE_ID
-            $accessToken = $token
+            PipelineId = $env:AZURE_DEVOPS_PIPELINE_ID
+            AccessToken = $token
           }
           
-          ./.github/scripts/Monitor-AdoPipeline.ps1 @params
+          ./.github/scripts/Monitor-AdoPipeline.ps1 @Params
