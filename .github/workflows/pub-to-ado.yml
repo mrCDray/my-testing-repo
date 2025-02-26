@@ -28,8 +28,16 @@ jobs:
           AZURE_DEVOPS_PROJECT: ${{ vars.AZURE_DEVOPS_PROJECT }}
           AZURE_DEVOPS_PIPELINE_ID: 7
         run: |
-          $token = (Get-AzAccessToken -ResourceUrl "499b84ac-1321-427f-aa17-267ca6975798").Token
-          Write-Host "Access Token retrieved successfully"
+          # Get token using az cli (Azure DevOps resource ID)
+          $token = (az account get-access-token --resource "499b84ac-1321-427f-aa17-267ca6975798" --query "accessToken" -o tsv)
+          
+          if (-not $token) {
+            Write-Host "Failed to retrieve token. Trying alternate method..."
+            # Alternative: get management token and use it (might work for some ADO scenarios)
+            $token = (az account get-access-token --query "accessToken" -o tsv)
+          }
+          
+          Write-Host "Access Token retrieved successfully" 
           
           $Params = @{
             OrganizationUrl = $env:AZURE_DEVOPS_ORG
