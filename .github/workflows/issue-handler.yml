@@ -1,0 +1,48 @@
+name: Issue Bot Handler
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  process-issue:
+    runs-on: ubuntu-latest
+    if: contains(github.event.issue.body, '/') # Only run if issue contains a command
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install PyGithub PyYAML
+
+      - name: Process Issue Command
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO_NAME: ${{ github.repository }}
+        run: |
+          python -c "
+          from issue_bot_handler import IssueBot
+          import os
+          
+          bot = IssueBot(
+              os.environ['GITHUB_TOKEN'],
+              os.environ['REPO_NAME']
+          )
+          bot.handle_issue_command(int(os.environ['ISSUE_NUMBER']))
+          "
+
+      - name: Run Team Creation
+        if: contains(github.event.issue.labels.*.name, 'team_setup')
+        uses: ./.github/workflows/team-setup-config.yml
+
+      - name: Run Repository Creation  
+        if: contains(github.event.issue.labels.*.name, 'repo_setup')
+        uses: ./.github/workflows/repository-manage.yml
