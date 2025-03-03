@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 import yaml
 from github import Github
 from github.GithubException import GithubException
@@ -108,6 +108,29 @@ class PRReviewManager:
         except Exception as e:
             print(f"Warning: Unexpected error getting team members for {team_slug}: {str(e)}")
             return []
+            
+    def _get_team_slugs_for_user(self, username: str, org) -> List[str]:
+        """Get all team slugs that a user belongs to in the organization."""
+        try:
+            user = self.gh.get_user(username)
+            teams = list(org.get_user_teams(user))
+            return [team.slug for team in teams]
+        except GithubException as e:
+            print(f"Warning: Error getting teams for user {username}: {str(e)}")
+            return []
+        except Exception as e:
+            print(f"Warning: Unexpected error getting teams for user {username}: {str(e)}")
+            return []
+
+    def _check_branch_protection(self, branch_name: str) -> bool:
+        """Check if the branch has 'dismiss stale reviews' enabled in branch protection."""
+        try:
+            branch = self.repo.get_branch(branch_name)
+            protection = branch.get_protection()
+            return protection.required_pull_request_reviews.dismiss_stale_reviews
+        except Exception as e:
+            print(f"Warning: Could not check branch protection settings: {str(e)}")
+            return False
 
     def _check_required_reviews(self, pr, branch_config: Dict) -> bool:
         """Check if the PR has met the required review conditions."""
@@ -117,33 +140,40 @@ class PRReviewManager:
 
             # Get all reviews
             reviews = pr.get_reviews()
-            approved_reviews = {}
+            approved_reviewers = set()
+            team_approvals = set()
 
             for review in reviews:
                 if review.state == "APPROVED":
                     reviewer = review.user
+                    approved_reviewers.add(reviewer.login)
+                    
+                    # For team approvals, get all teams the user belongs to
                     try:
-                        # Get user's teams in this repository
-                        user_teams = [team.name for team in reviewer.get_teams()]
-                        # Store the approval with the teams the reviewer belongs to
-                        approved_reviews[reviewer.login] = user_teams
-                    except GithubException as e:
-                        print(f"Warning: Could not get teams for user {reviewer.login}: {str(e)}")
-                        continue
+                        user_team_slugs = self._get_team_slugs_for_user(reviewer.login, self.org)
+                        for team_slug in user_team_slugs:
+                            # Convert team slugs to team names if necessary, or use as is
+                            team_approvals.add(team_slug)
+                            print(f"User {reviewer.login} approval counts for team {team_slug}")
+                    except Exception as e:
+                        print(f"Warning: Error processing team membership for {reviewer.login}: {str(e)}")
 
             # Check number of approvals
-            if len(approved_reviews) < required_approvals:
-                print(f"Debug: Not enough approvals. Got {len(approved_reviews)}, need {required_approvals}")
+            if len(approved_reviewers) < required_approvals:
+                print(f"Debug: Not enough approvals. Got {len(approved_reviewers)}, need {required_approvals}")
                 return False
 
-            # Check required teams
+            # Check required teams - now a user in multiple teams counts for all those teams
             if required_teams:
-                approved_teams = set()
-                for user_teams in approved_reviews.values():
-                    approved_teams.update(user_teams)
-
-                if not all(team in approved_teams for team in required_teams):
-                    missing_teams = set(required_teams) - approved_teams
+                required_team_slugs = [
+                    team.lower().strip().replace(" ", "-").replace("{{ team_name }}", 
+                    os.environ.get("TEAM_NAME", ""))
+                    for team in required_teams
+                ]
+                
+                # Check if all required teams have at least one approver
+                missing_teams = set(required_team_slugs) - team_approvals
+                if missing_teams:
                     print(f"Debug: Missing required team approvals from: {missing_teams}")
                     return False
 
@@ -164,22 +194,33 @@ class PRReviewManager:
             print(f"No configuration found for branch: {branch_name}")
             return
 
+        # Check if stale reviews are dismissed for this branch
+        dismiss_stale_reviews = self._check_branch_protection(branch_name)
+        print(f"Debug: Dismiss stale reviews setting for branch {branch_name}: {dismiss_stale_reviews}")
+
+        # Only add new reviewers if no reviews exist or if stale reviews are dismissed
+        should_request_reviews = dismiss_stale_reviews or pr.get_reviews().totalCount == 0
+        
         # Assign reviewers and assignees
         review_teams = branch_config.get("review_teams", [])
         assignee_teams = branch_config.get("assignees", [])
 
         try:
-            # Add review teams using team slugs
-            for team in review_teams:
-                team_slug = (
-                    team.replace("{{ team_name }}", os.environ.get("TEAM_NAME", "")).lower().strip().replace(" ", "-")
-                )
-                try:
-                    pr.create_review_request(team_reviewers=[team_slug])
-                    print(f"Successfully requested review from team: {team_slug}")
-                except GithubException as e:
-                    print(f"Warning: Could not request review from team {team_slug}: {str(e)}")
-                    continue
+            # Add review teams using team slugs if needed
+            if should_request_reviews:
+                print("Debug: Requesting reviews since either no reviews exist or stale reviews are dismissed")
+                for team in review_teams:
+                    team_slug = (
+                        team.replace("{{ team_name }}", os.environ.get("TEAM_NAME", "")).lower().strip().replace(" ", "-")
+                    )
+                    try:
+                        pr.create_review_request(team_reviewers=[team_slug])
+                        print(f"Successfully requested review from team: {team_slug}")
+                    except GithubException as e:
+                        print(f"Warning: Could not request review from team {team_slug}: {str(e)}")
+                        continue
+            else:
+                print("Debug: Skipping review requests as reviews exist and stale reviews are not dismissed")
 
             # Add assignees from teams
             assignees = set()
