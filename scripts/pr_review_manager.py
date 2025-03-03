@@ -78,7 +78,7 @@ class PRReviewManager:
         """Get list of usernames for members of a team with caching."""
         if team_slug in self._team_members_cache:
             return self._team_members_cache[team_slug]
-            
+
         try:
             team = org.get_team_by_slug(team_slug)
             members = list(team.get_members())
@@ -86,11 +86,11 @@ class PRReviewManager:
                 print(f"Warning: No members found in team {team_slug}")
                 self._team_members_cache[team_slug] = []
                 return []
-                
+
             member_logins = [member.login for member in members]
             self._team_members_cache[team_slug] = member_logins
             return member_logins
-            
+
         except GithubException as e:
             if e.status == 404:
                 print(f"Warning: Team {team_slug} not found")
@@ -102,7 +102,7 @@ class PRReviewManager:
             print(f"Warning: Unexpected error getting team members for {team_slug}: {str(e)}")
             self._team_members_cache[team_slug] = []
             return []
-    
+
     def _get_user_teams(self, username: str, required_team_slugs: List[str], org) -> List[str]:
         """
         Get the teams a user belongs to, but only check the required teams.
@@ -110,11 +110,11 @@ class PRReviewManager:
         """
         if username in self._user_teams_cache:
             return self._user_teams_cache[username]
-            
+
         try:
             user_teams = []
             user_obj = self.gh.get_user(username)
-            
+
             # Only check the required teams instead of all teams in the org
             for team_slug in required_team_slugs:
                 try:
@@ -124,10 +124,10 @@ class PRReviewManager:
                 except Exception as e:
                     print(f"Warning: Error checking if user {username} is in team {team_slug}: {str(e)}")
                     continue
-                    
+
             self._user_teams_cache[username] = user_teams
             return user_teams
-            
+
         except Exception as e:
             print(f"Warning: Error getting teams for user {username}: {str(e)}")
             self._user_teams_cache[username] = []
@@ -142,7 +142,7 @@ class PRReviewManager:
         except Exception as e:
             print(f"Warning: Could not check branch protection settings: {str(e)}")
             return False
-            
+
     def _format_team_slug(self, team_name: str) -> str:
         """Format a team name into a proper team slug with variable substitution."""
         team_name = team_name.replace("{{ team_name }}", os.environ.get("TEAM_NAME", ""))
@@ -153,7 +153,7 @@ class PRReviewManager:
         try:
             required_approvals = branch_config.get("required_approvals", 0)
             required_teams = branch_config.get("required_teams", [])
-            
+
             # Early return if no requirements
             if required_approvals == 0 and not required_teams:
                 return True
@@ -172,14 +172,17 @@ class PRReviewManager:
             for review in reviews:
                 reviewer = review.user.login
                 # Only track if we haven't seen this reviewer or if this review is newer
-                if reviewer not in reviewer_latest_review or reviewer_latest_review[reviewer].created_at < review.created_at:
+                if (
+                    reviewer not in reviewer_latest_review
+                    or reviewer_latest_review[reviewer].created_at < review.created_at
+                ):
                     reviewer_latest_review[reviewer] = review
 
             # Now process only the latest review from each reviewer
             for reviewer, review in reviewer_latest_review.items():
                 if review.state == "APPROVED":
                     approved_reviewers.add(reviewer)
-                    
+
                     # Only check team membership if we have required teams
                     if required_team_slugs:
                         # Get teams for this user, but only check required teams
@@ -217,13 +220,13 @@ class PRReviewManager:
 
         # Check if stale reviews are dismissed for this branch
         dismiss_stale_reviews = self._check_branch_protection(branch_name)
-        
+
         # Count reviews once
         reviews_count = list(pr.get_reviews())
-        
+
         # Only add new reviewers if no reviews exist or if stale reviews are dismissed
         should_request_reviews = dismiss_stale_reviews or len(reviews_count) == 0
-        
+
         # Assign reviewers and assignees
         review_teams = branch_config.get("review_teams", [])
         assignee_teams = branch_config.get("assignees", [])
@@ -245,16 +248,16 @@ class PRReviewManager:
                             print(f"Successfully requested review from team: {team_slug}")
                         except GithubException as e:
                             print(f"Warning: Could not request review from team {team_slug}: {str(e)}")
-            
+
             # Add assignees from teams - collect all first, then add in one operation
             if assignee_teams:
                 assignees = set()
                 formatted_assignee_teams = [self._format_team_slug(team) for team in assignee_teams]
-                
+
                 for team_slug in formatted_assignee_teams:
                     team_members = self._get_team_members(team_slug, org)
                     assignees.update(team_members)
-                
+
                 # Only proceed if there are assignees to add
                 if assignees:
                     # Add assignees in batches to handle GitHub's limitation
