@@ -4,6 +4,7 @@ import yaml
 from github import Github, GithubException
 from typing import Dict, List, Any
 
+
 class IssueBot:
     def __init__(self, token: str, repo_name: str):
         self.gh = Github(token)
@@ -12,7 +13,7 @@ class IssueBot:
             "create_team": self.handle_team_creation,
             "update_team": self.handle_team_update,
             "create_repo": self.handle_repo_creation,
-            "update_repo": self.handle_repo_update
+            "update_repo": self.handle_repo_update,
         }
 
     def create_form_template(self, command: str) -> Dict[str, Any]:
@@ -38,7 +39,7 @@ class IssueBot:
                     "- [ ] read",
                     "- [ ] write",
                     "- [ ] admin",
-                ]
+                ],
             },
             "create_repo": {
                 "title": "Repository Creation Request",
@@ -61,8 +62,8 @@ class IssueBot:
                     "  has_projects: true",
                     "  has_wiki: true",
                     "```",
-                ]
-            }
+                ],
+            },
         }
         return templates.get(command, {})
 
@@ -93,24 +94,16 @@ class IssueBot:
             "- `/update_repo` - Start repository update workflow",
             "- `/help` - Show this help menu",
             "",
-            "To use a command, create a new issue with the command as the first line."
+            "To use a command, create a new issue with the command as the first line.",
         ]
         issue.create_comment("\n".join(menu))
 
     def handle_team_creation(self, issue) -> None:
         """Handle team creation request"""
         template = self.create_form_template("create_team")
-        issue.edit(
-            title=f"Team Creation: {issue.title}",
-            body="\n".join(template["body"]),
-            labels=["team_setup"]
-        )
+        issue.edit(title=f"Team Creation: {issue.title}", body="\n".join(template["body"]), labels=["team_setup"])
 
     def handle_repo_creation(self, issue) -> None:
         """Handle repository creation request"""
         template = self.create_form_template("create_repo")
-        issue.edit(
-            title=f"Repository Creation: {issue.title}",
-            body="\n".join(template["body"]),
-            labels=["repo_setup"]
-        )
+        issue.edit(title=f"Repository Creation: {issue.title}", body="\n".join(template["body"]), labels=["repo_setup"])
