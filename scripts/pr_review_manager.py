@@ -108,13 +108,13 @@ class PRReviewManager:
         except Exception as e:
             print(f"Warning: Unexpected error getting team members for {team_slug}: {str(e)}")
             return []
-    
+
     def _get_user_teams(self, username: str, org) -> List[str]:
         """Get all teams that a user belongs to in the organization."""
         try:
             teams = list(org.get_teams())
             user_teams = []
-            
+
             for team in teams:
                 try:
                     if team.has_in_members(self.gh.get_user(username)):
@@ -122,7 +122,7 @@ class PRReviewManager:
                 except Exception as e:
                     print(f"Warning: Error checking if user {username} is in team {team.slug}: {str(e)}")
                     continue
-                    
+
             return user_teams
         except Exception as e:
             print(f"Warning: Error getting teams for user {username}: {str(e)}")
@@ -153,7 +153,7 @@ class PRReviewManager:
                 if review.state == "APPROVED":
                     reviewer = review.user
                     approved_reviewers.add(reviewer.login)
-                    
+
                     # For team approvals, get all teams the user belongs to
                     try:
                         user_team_slugs = self._get_user_teams(reviewer.login, org)
@@ -171,11 +171,10 @@ class PRReviewManager:
             # Check required teams - now a user in multiple teams counts for all those teams
             if required_teams:
                 required_team_slugs = [
-                    team.lower().strip().replace(" ", "-").replace("{{ team_name }}", 
-                    os.environ.get("TEAM_NAME", ""))
+                    team.lower().strip().replace(" ", "-").replace("{{ team_name }}", os.environ.get("TEAM_NAME", ""))
                     for team in required_teams
                 ]
-                
+
                 # Check if all required teams have at least one approver
                 missing_teams = set(required_team_slugs) - team_approvals
                 if missing_teams:
@@ -205,7 +204,7 @@ class PRReviewManager:
 
         # Only add new reviewers if no reviews exist or if stale reviews are dismissed
         should_request_reviews = dismiss_stale_reviews or pr.get_reviews().totalCount == 0
-        
+
         # Assign reviewers and assignees
         review_teams = branch_config.get("review_teams", [])
         assignee_teams = branch_config.get("assignees", [])
@@ -216,7 +215,10 @@ class PRReviewManager:
                 print("Debug: Requesting reviews since either no reviews exist or stale reviews are dismissed")
                 for team in review_teams:
                     team_slug = (
-                        team.replace("{{ team_name }}", os.environ.get("TEAM_NAME", "")).lower().strip().replace(" ", "-")
+                        team.replace("{{ team_name }}", os.environ.get("TEAM_NAME", ""))
+                        .lower()
+                        .strip()
+                        .replace(" ", "-")
                     )
                     try:
                         pr.create_review_request(team_reviewers=[team_slug])
