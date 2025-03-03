@@ -7,7 +7,8 @@ on:
 jobs:
   process-issue:
     runs-on: ubuntu-latest
-    if: contains(github.event.issue.body, '/') # Only run if issue contains a command
+    if: contains(github.event.issue.body, '/') 
+    environment: cloud-platform
     
     steps:
       - uses: actions/checkout@v4
@@ -28,21 +29,16 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           REPO_NAME: ${{ github.repository }}
         run: |
-          python -c "
-          from scripts/issue_automation import IssueBot
-          import os
-          
-          bot = IssueBot(
-              os.environ['GITHUB_TOKEN'],
-              os.environ['REPO_NAME']
-          )
-          bot.handle_issue_command(int(os.environ['ISSUE_NUMBER']))
-          "
+          python scripts/issue_automation.py
 
-      - name: Run Team Creation
+      - name: Run Team Creation Workflow
         if: contains(github.event.issue.labels.*.name, 'team_setup')
         uses: ./.github/workflows/team-setup-config.yml
+        with:
+          issue_number: ${{ github.event.issue.number }}
 
-      - name: Run Repository Creation  
+      - name: Run Repository Creation Workflow
         if: contains(github.event.issue.labels.*.name, 'repo_setup')
         uses: ./.github/workflows/repository-manage.yml
+        with:
+          issue_number: ${{ github.event.issue.number }}
