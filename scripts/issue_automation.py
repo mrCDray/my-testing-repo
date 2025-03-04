@@ -15,9 +15,9 @@ class IssueBot:
         self.repo = self.gh.get_repo(repo_name)
         self.commands = {
             "create_team": self.handle_team_creation,
-            "update_team": self.handle_team_update,
+            # "update_team": self.handle_team_update,
             "create_repo": self.handle_repo_creation,
-            "update_repo": self.handle_repo_update,
+            # "update_repo": self.handle_repo_update,
         }
 
     def parse_issue_content(self, body: str) -> Dict[str, Any]:
