@@ -42,7 +42,7 @@ jobs:
           GITHUB_ORGANIZATION: ${{ github.repository_owner }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          python .github/scripts/team_manage_parent_teams.py
+          python scripts/team_manage_parent_teams.py
 
       - name: Parent teams setup
         id: setup-team
@@ -51,7 +51,7 @@ jobs:
           GITHUB_ORGANIZATION: ${{ github.repository_owner }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          python .github/scripts/team_setup_teams.py
+          python scripts/team_setup_teams.py
 
       - name: Sync teams members
         if: steps.setup-team.outputs.exit_code == 0
@@ -63,7 +63,7 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_API_EVENT: "api-push"
         run: |
-          python .github/scripts/team_manage_membership.py
+          python scripts/team_manage_membership.py
 
       - name: Sync teams resource
         if: steps.setup-team.outputs.exit_code == 0
@@ -75,4 +75,4 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_API_EVENT: "api-push"
         run: |
-          python .github/scripts/team_manage_resource.py
+          python scripts/team_manage_resource.py

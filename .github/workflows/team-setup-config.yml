@@ -40,7 +40,7 @@ jobs:
             env:
                 GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
                 ISSUE_PAYLOAD: ${{ toJson(github.event.issue) }}
-            run: python .github/scripts/process_team_configuration.py
+            run: python scripts/process_team_configuration.py
 
           - name: Commit and Push Changes
             env: 
@@ -58,7 +58,7 @@ jobs:
               GITHUB_ORGANIZATION: ${{ github.repository_owner }}
               GITHUB_REPOSITORY: ${{ github.repository }}
             run: |
-              python .github/scripts/team_manage_parent_teams.py
+              python scripts/team_manage_parent_teams.py
       
           - name: Parent teams setup
             id: setup-team
@@ -67,7 +67,7 @@ jobs:
               GITHUB_ORGANIZATION: ${{ github.repository_owner }}
               GITHUB_REPOSITORY: ${{ github.repository }}
             run: |
-              python .github/scripts/team_setup_teams.py
+              python scripts/team_setup_teams.py
     
           - name: Sync teams members
             if: steps.setup-team.outputs.exit_code == 0
@@ -79,7 +79,7 @@ jobs:
               GITHUB_SHA: ${{ github.sha }}
               GITHUB_API_EVENT: "api-push"
             run: |
-              python .github/scripts/team_manage_membership.py
+              python scripts/team_manage_membership.py
     
           - name: Sync teams resource
             if: steps.setup-team.outputs.exit_code == 0
@@ -91,4 +91,4 @@ jobs:
               GITHUB_SHA: ${{ github.sha }}
               GITHUB_API_EVENT: "api-push"
             run: |
-              python .github/scripts/team_manage_resource.py
+              python scripts/team_manage_resource.py

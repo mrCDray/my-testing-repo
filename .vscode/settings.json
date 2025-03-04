@@ -8,12 +8,14 @@
         "addopts",
         "autouse",
         "caplog",
+        "collab",
         "docparams",
         "docstrings",
         "docstyle",
         "ELIF",
         "fstring",
         "indentless",
+        "iterrows",
         "levelname",
         "mypy",
         "pygh",
@@ -27,5 +29,9 @@
         "testpaths",
         "tmpdirname",
         "venv"
-    ]
+    ],
+    "githubPullRequests.ignoredPullRequestBranches": [
+        "main"
+    ],
+    "python.analysis.typeCheckingMode": "strict"
 }

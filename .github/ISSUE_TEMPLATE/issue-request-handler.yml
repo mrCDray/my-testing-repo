@@ -1,0 +1,69 @@
+name: Configuration Management
+description: Manage repository and team configurations
+title: "[Config]: Configuration Management Request"
+labels: 
+  - configuration
+  - management
+
+body:
+  - type: dropdown
+    id: config-type
+    attributes:
+      label: Configuration Type
+      description: Select the type of configuration you want to manage
+      options:
+        - Create Repository
+        - Update Repository Configuration
+        - Create Team
+        - Update Team Configuration
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## Configuration Guidelines
+        
+        - Provide configuration in YAML format within code blocks
+        - Follow the examples below
+        - Ensure correct indentation and formatting
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Configuration Details
+      description: Enter your configuration in YAML format
+      placeholder: |
+        # Repository Creation Example
+        ```yaml
+        repository:
+          name: my-awesome-project
+          visibility: private
+          description: A new project for our team
+        ```
+        
+        # Team Creation Example
+        ```yaml
+        team:
+          name: project-team
+          privacy: closed
+          description: Team for managing our projects
+        ```
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: configuration-review
+    attributes:
+      label: Configuration Review
+      description: Confirm your configuration details
+      options:
+        - label: I have reviewed the configuration and it follows the provided guidelines
+        - label: I understand that this request will be processed by the configuration management bot
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Provide any additional information or context for your configuration request
+      placeholder: Add any extra details, requirements, or explanations here.
