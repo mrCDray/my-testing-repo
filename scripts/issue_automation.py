@@ -73,25 +73,15 @@ class IssueBot:
             logger.error(f"Error processing issue: {str(e)}")
             issue.create_comment(f"❌ Error: {str(e)}")
 
-
     def handle_team_creation(self, issue) -> None:
         """Handle team creation request"""
         template = self.create_form_template("create_team")
-        issue.edit(
-            title=f"Team Creation: {issue.title}",
-            body="\n".join(template["body"]),
-            labels=["team_setup"]
-        )
+        issue.edit(title=f"Team Creation: {issue.title}", body="\n".join(template["body"]), labels=["team_setup"])
 
     def handle_repo_creation(self, issue) -> None:
         """Handle repository creation request"""
         template = self.create_form_template("create_repo")
-        issue.edit(
-            title=f"Repository Creation: {issue.title}",
-            body="\n".join(template["body"]),
-            labels=["repo_setup"]
-        )
-
+        issue.edit(title=f"Repository Creation: {issue.title}", body="\n".join(template["body"]), labels=["repo_setup"])
 
     def process_form_response(self, issue) -> None:
         """Process completed form response"""
