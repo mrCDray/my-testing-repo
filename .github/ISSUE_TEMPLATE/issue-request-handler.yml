@@ -1,73 +1,69 @@
-# Configuration Management
+name: Configuration Management
+description: Manage repository and team configurations
+title: "[Config]: Configuration Management Request"
+labels: 
+  - configuration
+  - management
 
-## Available Interactions
+body:
+  - type: dropdown
+    id: config-type
+    attributes:
+      label: Configuration Type
+      description: Select the type of configuration you want to manage
+      options:
+        - Create Repository
+        - Update Repository Configuration
+        - Create Team
+        - Update Team Configuration
+    validations:
+      required: true
 
-### Repository Configuration
+  - type: markdown
+    attributes:
+      value: |
+        ## Configuration Guidelines
+        
+        - Provide configuration in YAML format within code blocks
+        - Follow the examples below
+        - Ensure correct indentation and formatting
 
-- [x] Create New Repository
-- [x] Update Existing Repository Configuration
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Configuration Details
+      description: Enter your configuration in YAML format
+      placeholder: |
+        # Repository Creation Example
+        ```yaml
+        repository:
+          name: my-awesome-project
+          visibility: private
+          description: A new project for our team
+        ```
+        
+        # Team Creation Example
+        ```yaml
+        team:
+          name: project-team
+          privacy: closed
+          description: Team for managing our projects
+        ```
+    validations:
+      required: true
 
-### Team Configuration
+  - type: checkboxes
+    id: configuration-review
+    attributes:
+      label: Configuration Review
+      description: Confirm your configuration details
+      options:
+        - label: I have reviewed the configuration and it follows the provided guidelines
+        - label: I understand that this request will be processed by the configuration management bot
 
-- [x] Create New Team
-- [x] Update Existing Team Configuration
-
-### Instructions
-
-1. Select the type of configuration you want to manage
-2. Provide required details in the specified YAML format
-3. The bot will validate and process your request
-
-### Repository Creation Example
-
-```yaml
-repository:
-  name: my-awesome-project
-  visibility: private
-  description: A new project for our team
-  topics:
-    - python
-    - automation
-  security:
-    enableVulnerabilityAlerts: true
-    enableAutomatedSecurityFixes: true
-```
-
-### Repository Update Example
-
-```yaml
-repository:
-  name: existing-project-name
-  description: Updated project description
-  topics:
-    - updated-topic
-  security:
-    enableVulnerabilityAlerts: false
-```
-
-### Team Creation Example
-
-```yaml
-team:
-  name: project-team
-  description: Team for managing our projects
-  privacy: closed
-  members:
-    - username1
-    - username2
-```
-
-### Team Update Example
-
-```yaml
-team:
-  name: existing-team-name
-  description: Updated team description
-  privacy: secret
-```
-
-## Additional Notes
-
-- Ensure YAML is properly formatted
-- Only modify values within the configuration
-- The bot will provide feedback on your request
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Provide any additional information or context for your configuration request
+      placeholder: Add any extra details, requirements, or explanations here.
