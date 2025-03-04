@@ -1,44 +1,194 @@
-name: Issue Bot Handler
+name: Configuration Management
 
 on:
   issues:
-    types: [opened, edited]
+    types: 
+      - opened
+      - edited
+  issue_comment:
+    types:
+      - created
+      - edited
+
+permissions:
+  issues: write
+  contents: write
 
 jobs:
-  process-issue:
+  config-guidance:
     runs-on: ubuntu-latest
-    if: contains(github.event.issue.body, '/') 
-    environment: cloud-platform
-    
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          
-      - name: Install dependencies
+          python-version: '3.x'
+
+      - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install PyGithub PyYAML
+          pip install pyyaml
 
-      - name: Process Issue Command
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          REPO_NAME: ${{ github.repository }}
+      - name: Prepare Configuration Management Script
         run: |
-          python scripts/issue_automation.py
+          # Create the script in the runner
+          cat > config_management_guide.py << 'EOF'
+          import re
+          import yaml
+          import sys
+          import json
 
-      - name: Run Team Creation Workflow
-        if: contains(github.event.issue.labels.*.name, 'team_setup')
-        uses: ./.github/workflows/team-setup-config.yml
-        with:
-          issue_number: ${{ github.event.issue.number }}
+          class ConfigurationGuide:
+              def __init__(self):
+                  self.config_templates = {
+                      'repository_create': {
+                          'required_fields': ['name', 'visibility'],
+                          'example': '''
+          repository:
+            name: project-name
+            visibility: private'''
+                      },
+                      'repository_update': {
+                          'required_fields': ['name'],
+                          'example': '''
+          repository:
+            name: existing-project-name
+            description: Updated description'''
+                      },
+                      'team_create': {
+                          'required_fields': ['name', 'privacy'],
+                          'example': '''
+          team:
+            name: project-team
+            privacy: closed'''
+                      },
+                      'team_update': {
+                          'required_fields': ['name'],
+                          'example': '''
+          team:
+            name: existing-team-name
+            description: Updated description'''
+                      }
+                  }
 
-      - name: Run Repository Creation Workflow
-        if: contains(github.event.issue.labels.*.name, 'repo_setup')
-        uses: ./.github/workflows/repository-manage.yml
+              def detect_config_type(self, issue_body):
+                  yaml_match = re.search(r'```yaml\n(.*?)```', issue_body, re.DOTALL)
+                  if not yaml_match:
+                      return None
+                  
+                  try:
+                      config = yaml.safe_load(yaml_match.group(1))
+                      if 'repository' in config:
+                          return 'repository_create' if 'visibility' in config else 'repository_update'
+                      elif 'team' in config:
+                          return 'team_create' if 'privacy' in config else 'team_update'
+                      return None
+                  except:
+                      return None
+
+              def generate_guidance(self, config_type):
+                  template = self.config_templates.get(config_type)
+                  if not template:
+                      return "Invalid configuration type"
+
+                  guidance = f"""
+          ## {config_type.replace('_', ' ').title()} Configuration Guidance
+
+          ### Required Fields:
+          {', '.join(template['required_fields'])}
+
+          ### Example Configuration:
+          ```yaml
+          {template['example'].strip()}
+          ```
+          """
+                  return guidance
+
+          def main():
+              issue_body = sys.argv[1]
+              guide = ConfigurationGuide()
+              
+              # Detect configuration type
+              config_type = guide.detect_config_type(issue_body)
+              
+              # Prepare output
+              output = {
+                  'config_type': config_type or '',
+                  'guidance': guide.generate_guidance(config_type) if config_type else ''
+              }
+              
+              # Output as JSON for GitHub Actions
+              print(json.dumps(output))
+
+          if __name__ == '__main__':
+              main()
+          EOF
+
+      - name: Parse Issue Content
+        id: parse-config
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          # Run the script and capture its output
+          config_output=$(python scripts/issue_configuration_guide.py "$ISSUE_BODY")
+          echo "$config_output"
+          echo "$config_output" | jq -r '.config_type' > config_type.txt
+          echo "$config_output" | jq -r '.guidance' > guidance.txt
+          
+          # Set outputs for subsequent steps
+          echo "CONFIG_TYPE=$(cat config_type.txt)" >> $GITHUB_OUTPUT
+          echo "GUIDANCE<<EOF" >> $GITHUB_OUTPUT
+          cat guidance.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate Configuration Guidance
+        if: steps.parse-config.outputs.CONFIG_TYPE == ''
+        uses: actions/github-script@v7
         with:
-          issue_number: ${{ github.event.issue.number }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `
+              ## Configuration Management Guidance
+
+              Available interactions:
+              - Create Repository
+              - Update Repository Configuration
+              - Create Team
+              - Update Team Configuration
+
+              Please use the YAML format provided in the issue template.
+
+              Example for Repository Creation:
+              \`\`\`yaml
+              repository:
+                name: my-project
+                visibility: private
+              \`\`\`
+
+              Example for Team Creation:
+              \`\`\`yaml
+              team:
+                name: my-team
+                privacy: closed
+              \`\`\`
+                          `
+                          })
+
+      - name: Provide Specific Guidance
+        if: steps.parse-config.outputs.CONFIG_TYPE != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `${{ steps.parse-config.outputs.GUIDANCE }}`
+            })
