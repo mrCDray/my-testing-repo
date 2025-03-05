@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch, call, MagicMock
 import pytest
+from pytest_mock.plugin import _mocker
 import yaml
 from git.exc import InvalidGitRepositoryError
 
@@ -102,7 +103,7 @@ def sample_config():
 
 
 @pytest.fixture
-def test_env(monkeypatch):
+def test_env(monkeypatch: pytest.MonkeyPatch):
     """Setup test environment variables"""
     monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
     monkeypatch.setenv("GITHUB_ORGANIZATION", "test-org")
@@ -111,7 +112,7 @@ def test_env(monkeypatch):
 
 
 @pytest.fixture
-def mock_github_client(mocker):
+def mock_github_client(mocker: Callable[..., Generator[MockerFixture, None, None]]):
     """Mock GitHub client with proper authentication"""
     mock_gh = mocker.patch("github.Github")
     mock_instance = mocker.MagicMock()
@@ -124,7 +125,7 @@ def mock_github_client(mocker):
     return {"client": mock_instance, "org": mock_org, "gh": mock_gh}
 
 
-def test_load_yaml_config(tmp_path):
+def test_load_yaml_config(tmp_path: Path):
     """Test loading YAML configuration"""
     config_file = tmp_path / "teams.yml"
     test_config = {"teams": [{"team_name": "test_team"}]}
@@ -136,7 +137,7 @@ def test_load_yaml_config(tmp_path):
     assert result == test_config
 
 
-def test_find_git_root(mock_repo):
+def test_find_git_root(mock_repo: MagicMock):
     """Test finding Git repository root"""
     with patch("git.Repo") as MockRepo:
         mock_instance = MagicMock()
@@ -154,7 +155,7 @@ def test_find_git_root_error():
             find_git_root()
 
 
-def test_get_existing_team_directories(tmp_path):
+def test_get_existing_team_directories(tmp_path: Path):
     """Test getting existing team directories"""
     teams_dir = tmp_path / "teams"
     teams_dir.mkdir()
@@ -165,7 +166,7 @@ def test_get_existing_team_directories(tmp_path):
     assert set(result) == {"team1", "team2"}
 
 
-def test_get_configured_teams(tmp_path):
+def test_get_configured_teams(tmp_path: Path):
     """Test getting configured teams from YAML"""
     config_file = tmp_path / "teams.yml"
     test_config = {"teams": [{"team_name": "team1"}, {"team_name": "team2"}]}
@@ -177,7 +178,7 @@ def test_get_configured_teams(tmp_path):
     assert result == ["team1", "team2"]
 
 
-def test_delete_team_directory(tmp_path):
+def test_delete_team_directory(tmp_path: Path):
     """Test deleting team directory"""
     team_dir = tmp_path / "teams" / "test_team"
     team_dir.mkdir(parents=True)
@@ -188,7 +189,7 @@ def test_delete_team_directory(tmp_path):
     assert not team_dir.exists()
 
 
-def test_delete_github_team(mock_github):
+def test_delete_github_team(mock_github: dict[str, MagicMock]):
     """Test deleting GitHub team"""
     mock_org = mock_github["org"]
     mock_team = mock_github["team"]
@@ -207,7 +208,7 @@ def test_delete_github_team(mock_github):
     mock_team.delete.assert_called_once()
 
 
-def test_commit_changes(mock_repo):
+def test_commit_changes(mock_repo: MagicMock):
     """Test committing changes"""
     repo_root = Path("/fake/repo/path")
     deleted_teams = ["team1", "team2"]
@@ -220,7 +221,7 @@ def test_commit_changes(mock_repo):
     mock_repo.remote().push.assert_called_once()
 
 
-def test_main_workflow(test_env, mock_gh_auth, tmp_path):
+def test_main_workflow(test_env: None, mock_gh_auth: MagicMock, tmp_path: Path):
     """Test the main workflow"""
     # Create a new mock for delete_github_team to track its calls
     mock_delete_github = MagicMock(return_value=True)
@@ -248,9 +249,8 @@ def test_main_workflow(test_env, mock_gh_auth, tmp_path):
         patches["commit_changes"].assert_called_once()
 
 
-def test_main_no_teams_to_remove(mock_gh_auth, tmp_path):
-    """Test main when no teams need to be removed"""
-    with patch.multiple(
+def test_main_no_teams_to_remove(mock_gh_auth: MagicMock, tmp_path: Path):
+    with patch.dict('os.environ', {'GITHUB_TOKEN': 'fake-token'}), patch.multiple(
         "scripts.team_manage_parent_teams",
         find_git_root=lambda: tmp_path,
         get_existing_team_directories=lambda x: ["team1"],
