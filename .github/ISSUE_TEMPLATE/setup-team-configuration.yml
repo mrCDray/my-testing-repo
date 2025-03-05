@@ -3,6 +3,7 @@ name: 🆕 Setup Team Configuration
 description: Setup parent Team configuration and creates all the child and team structure and access to default Repositories.
 labels:
   - team_setup
+  - team_update
 body:
   - type: markdown
     attributes:

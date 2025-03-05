@@ -12,7 +12,7 @@ jobs:
         runs-on: ubuntu-latest
         environment: 
           name: cloud-platform
-        if: contains(github.event.issue.labels.*.name, 'team_setup')
+        if: contains(github.event.issue.labels.*.name, 'team_setup') || contains(github.event.issue.labels.*.name, 'team_update')
     
         steps:
           - uses: actions/create-github-app-token@v1
