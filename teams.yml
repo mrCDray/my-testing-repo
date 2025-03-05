@@ -38,14 +38,22 @@ teams:
   - team_name: Team-Test-Creation-A
     description: Github test team creation A setup.
     project: A-TEAM
-    members:
+    members: null
     default_repositories:
       - my-testing-repo
     repository_permissions: read
   - team_name: Team-Test-Creation-B
     description: Github test team creation B setup.
     project: Beta-TEAM
+    members: null
+    default_repositories:
+      - my-testing-repo
+    repository_permissions: read
+  - team_name: test-team-1
+    project: project-test-1
+    description: testing team creation number one
     members:
+      - '@mrchrisdray'
     default_repositories:
       - my-testing-repo
     repository_permissions: read
