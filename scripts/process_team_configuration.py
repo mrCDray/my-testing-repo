@@ -97,7 +97,7 @@ def main():
     # Parse issue body
     team_config = parse_issue_body(payload["body"])
 
-   # Update teams configuration
+    # Update teams configuration
     update_teams_config(team_config)
 
     # Create response message
@@ -122,9 +122,10 @@ You can:
 - Update team description
 - Change repository permissions
 """
-    
+
     # Print the response (this will be captured and added to the issue)
     print(response_message)
+
 
 if __name__ == "__main__":
     main()
