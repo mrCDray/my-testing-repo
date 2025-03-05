@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  team-membership-managment:
+  team-membership-management:
     runs-on: ubuntu-latest
     environment: 
       name: cloud-platform

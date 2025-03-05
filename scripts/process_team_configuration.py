@@ -100,31 +100,7 @@ def main():
     # Update teams configuration
     update_teams_config(team_config)
 
-    # Create response message
-    response_message = f"""
-### Team Configuration Status
-
-✅ Team configuration for **{team_config.get('team_name', 'Unknown Team')}** has been processed.
-
-#### Default Setup Details:
-- Team Name: {team_config.get('team_name')}
-- Project: {team_config.get('project')}
-- Description: {team_config.get('description')}
-- Members: {', '.join(team_config.get('members', []))}
-- Default Repositories: {', '.join(team_config.get('default_repositories', []))}
-- Repository Permissions: {team_config.get('repository_permissions', 'read')}
-
-#### Next Steps
-To update or modify sub-team configurations, please create a new issue using the "Update Team Configuration" template.
-You can:
-- Add/remove team members
-- Modify repository access
-- Update team description
-- Change repository permissions
-"""
-
-    # Print the response (this will be captured and added to the issue)
-    print(response_message)
+    print(f"Process team configuration for {team_config.get('team_name', 'Unknown Team')}")
 
 
 if __name__ == "__main__":
