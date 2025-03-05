@@ -42,4 +42,11 @@ teams:
     default_repositories:
       - my-testing-repo
     repository_permissions: read
-  
+  - team_name: team-b
+    project: testing team creation
+    description: issue output test
+    members:
+      - '@mrchrisdray'
+    default_repositories:
+      - my-testing-repo
+    repository_permissions: read
