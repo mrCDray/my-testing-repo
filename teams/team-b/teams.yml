@@ -1,0 +1,52 @@
+teams:
+  team_name: team-b
+  description: issue output test
+  project: testing team creation
+  repository_permission: read
+  members:
+    - '@mrchrisdray'
+  repositories:
+    - my-testing-repo
+  default_sub_teams:
+    - name: team-b-developers
+      description: Developers for testing team creation
+      members: []
+      repositories:
+        - my-testing-repo
+      repository_permissions: write
+    - name: team-b-testers
+      description: Testers for testing team creation
+      members: []
+      repositories:
+        - my-testing-repo
+      repository_permissions: triage
+    - name: team-b-reviewers
+      description: Code reviewers for testing team creation
+      members: []
+      repositories:
+        - my-testing-repo
+      repository_permissions: write
+    - name: team-b-release-managers
+      description: Staging/Production release management for testing team creation
+      members: []
+      repositories:
+        - my-testing-repo
+      repository_permissions: maintain
+    - name: team-b-operations
+      description: Operations for testing team creation
+      members: []
+      repositories:
+        - my-testing-repo
+      repository_permissions: maintain
+    - name: team-b-security
+      description: Security for testing team creation
+      members: []
+      repositories:
+        - my-testing-repo
+      repository_permissions: admin
+    - name: team-b-project-owners
+      description: Owners for testing team creation
+      members: []
+      repositories:
+        - my-testing-repo
+      repository_permissions: admin
