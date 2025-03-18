@@ -38,7 +38,8 @@ teams:
   - team_name: Team-Test-Creation-A
     description: Github test team creation A setup.
     project: A-TEAM
-    members: null
+    members:
+      - '@mrchrisdray'
     default_repositories:
       - my-testing-repo
     repository_permissions: read
