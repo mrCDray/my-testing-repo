@@ -165,7 +165,7 @@ graph TD
 - Utilising cloud-native security tools for runtimr threat detection and response
 - Implementing automated compliance reporting
 
-**Success Metrics:**
+**Potential Benefits/Measures:**
 
 - Reuced security risks and vulnerabilities
 - Imporved complianace posture
@@ -205,104 +205,13 @@ As a platform engineering leader, I would:
 
 **I'm excited about the opportunity to lead these transformative objectives and help the organization achieve its technology and business goals for 2025.**# Top 3 Platform Engineering Objectives for 2025
 
-## Objective 1: Implement AI-Driven Developer Experience Optimization
-
-**Why It Matters:**
-
-- Developer productivity directly impacts business agility and time-to-market
-- Engineering teams spend up to 40% of time on non-coding activities
-- AI can significantly reduce cognitive load and streamline workflows
-
-flowchart TB
-    A[Developer] --> B[AI-Assisted Coding]
-    A --> C[Smart CI/CD Pipelines]
-    A --> D[Intelligent Documentation]
-    A --> E[Self-Healing Infrastructure]
-    
-    B --> F[Increased Productivity]
-    C --> F
-    D --> F
-    E --> F
-    
-    F --> G[Business Value]
-    
-    style A fill:#4285F4,stroke:#333,stroke-width:2px,color:white
-    style B fill:#34A853,stroke:#333,stroke-width:1px,color:white
-    style C fill:#34A853,stroke:#333,stroke-width:1px,color:white
-    style D fill:#34A853,stroke:#333,stroke-width:1px,color:white
-    style E fill:#34A853,stroke:#333,stroke-width:1px,color:white
-    style F fill:#FBBC05,stroke:#333,stroke-width:1px,color:white
-    style G fill:#EA4335,stroke:#333,stroke-width:2px,color:white
-
-**Key Initiatives:**
-
-- Deploy AI-assisted code generation, review, and refactoring tools
-- Implement smart CI/CD pipelines with automated error remediation
-- Create intelligent documentation systems that evolve with codebase changes
-- Build self-healing infrastructure with predictive maintenance capabilities
-
-**Potential Benefits/Measures:**
-
-- 30% reduction in development cycle time
-- 25% decrease in production incidents
-- 40% improvement in time-to-resolution for issues
-- Measurable developer satisfaction improvement via regular surveys
-
----
-
-## Objective 2: Scale Platform as a Product with FinOps Integration
-
-**Why It Matters:**
-
-- Traditional platform teams struggle with adoption and demonstrating value
-- Cloud costs continue to escalate without proper governance
-- Engineering teams need self-service capabilities with cost awareness
-
-**Key Initiatives:**
-
-- Implement internal developer portals with comprehensive self-service capabilities
-- Deploy real-time cost visibility dashboards for all engineering teams
-- Create automated resource optimization recommendations
-- Establish clear platform product roadmaps with stakeholder feedback loops
-
-**Success Metrics:**
-
-- 90% platform adoption across engineering teams
-- 20% reduction in cloud spend without sacrificing performance
-- 50% decrease in platform-related support tickets
-- Consistent positive feedback in quarterly platform NPS scores
-
----
-
-## Objective 3: Build a Comprehensive Platform Resilience Strategy
-
-**Why It Matters:**
-
-- System complexity is increasing exponentially with distributed architectures
-- Security threats are more sophisticated and persistent than ever
-- Regulatory requirements for resilience continue to expand
-
-**Key Initiatives:**
-
-- Implement chaos engineering practices across all critical systems
-- Deploy comprehensive observability with business context correlation
-- Create automated disaster recovery capabilities with regular testing
-- Establish a security-as-code framework integrated into development workflows
-
-**Success Metrics:**
-
-- 99.99% uptime for critical servic
-- 50% reduction in mean time to detection for issues
-- 100% compliance with regulatory requirements
-- Zero critical security incidents
-
 ---
 
 ## Why These Objectives Matter for Our Future
 
 The organization that masters these three objectives will:
 
-1. **Move Faster** - Empower developers to deliver value at unprecedented speed
+1. **Move Faster** - Empower developers to deliver value at speed
 2. **Optimize Resources** - Ensure every dollar spent on technology delivers maximum value
 3. **Build Trust** - Create systems that customers and regulators can depend on
 4. **Win in the Market** - Transform technology from a constraint to a competitive advantage
