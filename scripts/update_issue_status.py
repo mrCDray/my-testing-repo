@@ -64,12 +64,13 @@ def update_issue_with_status() -> None:
                 - 👨‍👩‍👧‍👦 Team Structure: Configure parent/child relationships
                 
                 The changes will be automatically processed and synced once approved."""
-    
+
     # Create comment on issue
     try:
         issue.create_comment(comment)
     except Exception as e:
         raise RuntimeError(f"Failed to create issue comment: {str(e)}") from e
+
 
 def main():
     # Call the function to update the GitHub issue with the team configuration status
