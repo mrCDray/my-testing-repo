@@ -1,4 +1,4 @@
-# Top 3 Platform Engineering Objectives for 2025
+# Platform Engineering Objectives
 
 ## Agenda
 
@@ -10,7 +10,12 @@
 
 **Why It Matters:**
 
-- Developers spend 40% of time on infrastructure setup instead of coding, directly impacting business agility
+- Developers spend significant time on infrastructure setup instead of coding, directly impacting business agility
+- Considerable effort goes into repetitive tasks like environment configuration, dependency management, and access provisioning
+- Time consumed by CI/CD pipeline maintenance, debugging build failures, and troubleshooting deployment issues
+- Hours spent on compliance documentation, security reviews, and audit preparation
+- Significant overhead managing integration with external services, API gateways, and authentication systems
+- Manual testing environments creation and test data management drains development resources
 - High cognitive load reduces innovation and efficiency
 - Inconsistent development environments lead to "works on my machine" problems
 
@@ -18,7 +23,7 @@
 flowchart TB
     A[Developer] --> B[GitHub Copilot Integration]
     A --> C[Golden Paths & Blueprints]
-    A --> D[Backstage IDP Portal]
+    A --> D[IDP Portal]
     A --> E[Self-Healing Infrastructure]
     
     B --> F[Increased Productivity]
@@ -39,7 +44,7 @@ flowchart TB
 
 **Key Initiatives:**
 
-- **Implement Internal Developer Platform (IDP)**: Deploy Backstage as a centralized developer portal for service discovery and documentation
+- **Implement Internal Developer Platform (IDP)**: Deploy IDP as a centralized developer portal for service discovery and documentation
 - **Establish Golden Paths & Blueprints**: Create standardized, validated paths for common development tasks with embedded best practices
 - **GitHub Copilot Integration**: Integrate AI-assisted coding tools to accelerate development and reduce boilerplate code
 - **Templated Environments**: Provide pre-configured development environments with all necessary tools and dependencies
@@ -47,15 +52,15 @@ flowchart TB
 
 **Pareto Efficiency Focus:**
 
-- Identify and optimize the 20% of developer workflows that consume 80% of engineering time
+- Identify and optimize the developer workflows that consume the most engineering time
 - Target templates and golden paths for the most frequently used services and patterns
 
 **Potential Benefits/Measures:**
 
-- 30% reduction in development cycle time
-- 60% faster onboarding for new developers
-- 40% improvement in DORA metrics (deployment frequency, lead time, MTTR)
-- 85% developer satisfaction rating
+- Substantial reduction in development cycle time
+- Faster onboarding for new developers
+- Improvement in DORA metrics (deployment frequency, lead time, MTTR)
+- Increased developer satisfaction ratings
 
 ---
 
@@ -70,7 +75,7 @@ flowchart TB
 ```mermaid
 graph TD
     subgraph "Platform as a Product"
-        A[Backstage Portal] --> B[Self-Service Capabilities]
+        A[IDP Portal] --> B[Self-Service Capabilities]
         A --> C[Cost Visibility]
         A --> D[Resource Optimization]
         A --> E[Product Roadmap]
@@ -105,7 +110,7 @@ graph TD
 
 **Key Initiatives:**
 
-- **Backstage as Central IDP**: Implement comprehensive developer portal with service catalog, documentation, and scaffolding
+- **Central IDP**: Implement comprehensive developer portal with service catalog, documentation, and scaffolding
 - **FinOps Dashboard Integration**: Create real-time cost visibility within the developer workflow
 - **Resource Optimization Automation**: Implement automatic scaling, rightsizing, and cleanup of unused resources
 - **Product Management Approach**: Establish platform roadmap, SLAs, and customer feedback mechanisms
@@ -113,15 +118,15 @@ graph TD
 
 **Pareto Efficiency Focus:**
 
-- Apply 80/20 rule to platform features: prioritize the 20% of capabilities that deliver 80% of value
-- Focus cost optimization efforts on the 20% of resources that represent 80% of cloud spend
+- Apply 80/20 rule to platform features: prioritize the capabilities that deliver the most value
+- Focus cost optimization efforts on the resources that represent the majority of cloud spend
 
 **Potential Benefits/Measures:**
 
-- 90% platform adoption across engineering teams
-- 25% reduction in cloud spend without sacrificing performance
-- 50% decrease in platform-related support tickets
-- Platform NPS score above 40
+- High platform adoption across engineering teams
+- Significant reduction in cloud spend without sacrificing performance
+- Decrease in platform-related support tickets
+- Positive platform NPS scores
 
 ---
 
@@ -177,15 +182,15 @@ graph TD
 
 **Pareto Efficiency Focus:**
 
-- Identify and prioritize the 20% of vulnerabilities that represent 80% of security risk
-- Focus compliance automation on the 20% of controls that satisfy 80% of regulatory requirements
+- Identify and prioritize the vulnerabilities that represent the greatest security risk
+- Focus compliance automation on the controls that satisfy the majority of regulatory requirements
 
 **Potential Benefits/Measures:**
 
-- 75% reduction in security incidents
-- 90% reduction in compliance reporting effort
-- 60% faster vulnerability remediation
-- Zero critical findings in external security audits
+- Significant reduction in security incidents
+- Substantial reduction in compliance reporting effort
+- Faster vulnerability remediation
+- Improved performance in external security audits
 
 ---
 
@@ -206,14 +211,12 @@ pie title "Platform Engineering Impact Areas"
     "Developer Satisfaction" : 20
 ```
 
-**The platform team that executes on these objectives becomes the cornerstone of the company's success in 2025 and beyond.**
-
 ---
 
 ## Key Success Factors
 
 - Prioritize backend API quality and stability before frontend development
-- Ensure Backstage is properly integrated with existing systems
+- Ensure IDP is properly integrated with existing systems
 - Apply Pareto principle to maximize impact with limited resources
 - Measure and communicate value delivered continuously
 
@@ -229,4 +232,103 @@ As a platform engineering leader, I would:
 - Implement data-driven decision making for continuous improvement
 - Foster a culture of innovation, reliability, and continuous learning
 
-**I'm excited about the opportunity to lead these transformative objectives and help the organization achieve its technology and business goals for 2025.**
+---
+
+# Speaking Notes
+
+## Introduction
+
+**Key Points:**
+- Platform engineering is about creating a foundation that accelerates development, reduces costs, and enhances security
+- These three objectives are interconnected and mutually reinforcing
+- The presentation follows the "why, what, how" structure for each objective
+- Emphasize that this is about working smarter, not harder – Pareto efficiency
+
+**Delivery Tips:**
+- Begin with a relatable pain point developers face daily
+- Share a brief success story from another company that implemented platform engineering effectively
+- Use the mermaid diagrams to visually reinforce connections between initiatives
+
+## For Objective 1: Developer Experience
+
+**Key Talking Points:**
+- Developer time is our most precious resource – anything that wastes it damages our business velocity
+- The cognitive load on developers has grown exponentially with system complexity
+- IDP isn't just a tool – it's a fundamental shift in how developers interact with infrastructure
+- Developers currently lose productive time to many non-coding activities that could be automated:
+  * Manually provisioning and configuring development environments
+  * Navigating complex access management systems for various services
+  * Troubleshooting CI/CD pipeline failures unrelated to their code
+  * Creating and managing test data across different environments
+  * Implementing and maintaining security controls without specialized expertise
+  * Documenting architecture for compliance requirements
+  * Debugging infrastructure inconsistencies between environments
+  * Coordinating releases across multiple dependent services
+
+**Implementation Guidance:**
+- Start with a developer survey to identify biggest pain points
+- Create a small cross-functional team with respected developers to champion initial golden paths
+- Begin with one high-value workflow and perfect it before expanding
+- Measure before and after metrics for that workflow to demonstrate value
+- Implement automated environment provisioning as an early win
+- Create self-service tools for common developer needs (test data generation, service integration)
+
+**Gaining Developer Buy-in:**
+- Involve influential developers early in the design process
+- Host regular demos and feedback sessions
+- Create a "developer champions" program to recognize early adopters
+- Show time savings with concrete examples from their daily work
+- Implement quick feedback loops to rapidly iterate on platform features
+- Demonstrate immediate value with automation of the most painful manual tasks
+
+## For Objective 2: Platform as Product
+
+**Key Talking Points:**
+- Traditional platforms fail because they're built for IT convenience, not developer needs
+- Cost optimization shouldn't require developer expertise in cloud architecture
+- Treating the platform as a product means focusing on user experience and value delivery
+
+**Implementation Guidance:**
+- Begin with a clear service catalog of what your platform offers
+- Implement progressive disclosure of complexity – simple options first, advanced settings available but not required
+- Create a dedicated product owner role for the platform
+- Start cost visualization with the highest-spend services
+
+**Gaining Operations/Finance Buy-in:**
+- Show current cloud waste and projected savings
+- Create automated reports for finance that translate technical metrics to business value
+- Implement quick wins for cost savings to build credibility
+- Create shared KPIs between platform and operations teams
+
+## For Objective 3: Security & Compliance
+
+**Key Talking Points:**
+- Security as friction fails; security as enablement succeeds
+- Compliance is increasingly a competitive advantage, not just a requirement
+- We must shift from point-in-time to continuous compliance
+
+**Implementation Guidance:**
+- Begin with a threat modeling exercise to prioritize security controls
+- Implement security scanning in CI/CD pipelines before making other changes
+- Create a security champion in each development team
+- Build compliance into templates rather than adding as an afterthought
+
+**Gaining Security Team Buy-in:**
+- Involve security architects in golden path design from day one
+- Create shared dashboards showing security posture improvements
+- Demonstrate how automation reduces security team toil
+- Show how this approach scales security influence beyond the security team's size
+
+## Closing Remarks
+
+**Key Talking Points:**
+- These initiatives require initial investment but deliver exponential returns
+- Success depends on cross-functional collaboration and shared metrics
+- The Pareto principle should guide our implementation – focus on highest-value components first
+- We're not just building tools; we're transforming how we work
+
+**Next Steps Guidance:**
+- Suggest forming a platform engineering steering committee with representatives from dev, ops, security
+- Propose a 30-60-90 day plan focusing on quick wins first
+- Recommend regular review cadence to measure progress against objectives
+- Emphasize importance of celebrating early successes
