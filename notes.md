@@ -222,18 +222,6 @@ pie title "Platform Engineering Impact Areas"
 
 ---
 
-## My Role in Driving These Objectives
-
-As a platform engineering leader, I would:
-
-- Establish the vision and strategy aligned with business goals
-- Build and develop high-performing platform engineering teams
-- Create robust feedback mechanisms with engineering stakeholders
-- Implement data-driven decision making for continuous improvement
-- Foster a culture of innovation, reliability, and continuous learning
-
----
-
 # Speaking Notes
 
 ## Introduction
