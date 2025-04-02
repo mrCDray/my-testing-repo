@@ -45,7 +45,7 @@ def update_team_config_file(team_name: str, members: List[str], operation: str) 
     
     try:
         # Read the existing configuration
-        with open(team_config_file, mode='r', encoding='utf-8')) as f:
+        with open(team_config_file, mode='r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
         
         # Normalize existing and new members
