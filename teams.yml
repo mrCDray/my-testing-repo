@@ -51,3 +51,9 @@ teams:
     default_repositories:
       - my-testing-repo
     repository_permissions: read
+  - team_name: null
+    project: null
+    description: null
+    members: []
+    default_repositories: []
+    repository_permissions: read
