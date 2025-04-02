@@ -275,7 +275,7 @@ def process_team_configuration_issue(gh, org, issue: Issue, logger: logging.Logg
 def process_issue_ops(gh, org, repo: Repository, logger: logging.Logger):
     """Process team membership configuration issues"""
     # Find open issues with /teams command
-    issues = repo.get_issues(state="open", labels=["team-config"])
+    issues = repo.get_issues(state="open", labels=["team_user_maintain"])
 
     for issue in issues:
         try:
